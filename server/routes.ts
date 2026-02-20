@@ -1,0 +1,578 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { generateToken, authMiddleware, type AuthRequest } from "./auth";
+import bcrypt from "bcrypt";
+import { z } from "zod";
+
+function safeUser(user: any) {
+  const { password, ...safe } = user;
+  return safe;
+}
+
+const registerBodySchema = z.object({
+  companyName: z.string().min(2),
+  cnpj: z.string().min(11),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  adminName: z.string().min(2),
+  adminUsername: z.string().min(3),
+  adminPassword: z.string().min(6),
+});
+
+const loginBodySchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+  loginType: z.enum(["admin", "employee"]),
+});
+
+const createEmployeeSchema = z.object({
+  name: z.string().min(2),
+  username: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(4),
+  department: z.string().optional(),
+  position: z.string().optional(),
+  workHoursMinutes: z.number().optional(),
+});
+
+export async function registerRoutes(
+  httpServer: Server,
+  app: Express
+): Promise<Server> {
+
+  // Auth routes
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const parsed = registerBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos" });
+      }
+      const { companyName, cnpj, email, phone, address, adminName, adminUsername, adminPassword } = parsed.data;
+
+      const existingUser = await storage.getUserByUsername(adminUsername);
+      if (existingUser) {
+        return res.status(400).json({ message: "Usuario ja existe" });
+      }
+
+      const company = await storage.createCompany({
+        name: companyName,
+        cnpj,
+        email,
+        phone: phone || null,
+        address: address || null,
+        geoLat: null,
+        geoLng: null,
+        geoRadius: 100,
+        workHoursMinutes: 528,
+        closingDayStart: 1,
+        closingDayEnd: 1,
+        toleranceMinutes: 10,
+        active: true,
+      });
+
+      await storage.createUser({
+        username: adminUsername,
+        password: adminPassword,
+        name: adminName,
+        email,
+        role: "admin_company",
+        companyId: company.id,
+        department: null,
+        position: "Administrador",
+        workHoursMinutes: null,
+        mustChangePassword: false,
+        active: true,
+      });
+
+      res.json({ message: "Empresa cadastrada com sucesso" });
+    } catch (err: any) {
+      console.error("Register error:", err);
+      res.status(500).json({ message: "Erro ao cadastrar empresa" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const parsed = loginBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos" });
+      }
+      const { username, password, loginType } = parsed.data;
+
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ message: "Credenciais invalidas" });
+      }
+
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Credenciais invalidas" });
+      }
+
+      if (!user.active) {
+        return res.status(401).json({ message: "Conta desativada" });
+      }
+
+      if (loginType === "admin" && user.role === "employee") {
+        return res.status(401).json({ message: "Acesso de administrador nao permitido para funcionarios" });
+      }
+
+      if (loginType === "employee" && user.role !== "employee") {
+        return res.status(401).json({ message: "Use a aba de administrador para fazer login" });
+      }
+
+      const token = generateToken({ id: user.id, role: user.role, companyId: user.companyId });
+      const { password: _, ...safeUser } = user;
+
+      res.json({ token, user: safeUser });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      res.status(500).json({ message: "Erro ao fazer login" });
+    }
+  });
+
+  app.post("/api/auth/change-password", authMiddleware(), async (req: AuthRequest, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) return res.status(400).json({ message: "Senha atual incorreta" });
+
+      await storage.updateUser(user.id, { password: newPassword, mustChangePassword: false });
+      res.json({ message: "Senha alterada com sucesso" });
+    } catch (err) {
+      console.error("Change password error:", err);
+      res.status(500).json({ message: "Erro ao alterar senha" });
+    }
+  });
+
+  // Admin Company routes
+  app.get("/api/admin/dashboard", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const employees = await storage.getEmployeesByCompany(companyId);
+      const todayRecords = await storage.getTimeRecordsByCompany(companyId);
+
+      const workingNow = new Set<string>();
+      const employeeRecords: Record<string, any[]> = {};
+      for (const record of todayRecords) {
+        if (!employeeRecords[record.userId]) employeeRecords[record.userId] = [];
+        employeeRecords[record.userId].push(record);
+      }
+      for (const [userId, records] of Object.entries(employeeRecords)) {
+        if (records.length % 2 === 1) workingNow.add(userId);
+      }
+
+      const activeEmployees = employees.filter(e => e.active);
+      const absentToday = activeEmployees.filter(e => !employeeRecords[e.id] || employeeRecords[e.id].length === 0).length;
+
+      const alerts: any[] = [];
+      for (const [userId, records] of Object.entries(employeeRecords)) {
+        if (records.length % 2 === 1) {
+          const emp = employees.find(e => e.id === userId);
+          if (emp) {
+            const lastEntry = records[records.length - 1];
+            const elapsed = (Date.now() - new Date(lastEntry.timestamp).getTime()) / 60000;
+            const workMinutes = emp.workHoursMinutes || 528;
+            if (elapsed > workMinutes + 60) {
+              alerts.push({
+                title: `${emp.name} - Jornada estendida`,
+                description: `Trabalhando ha mais de ${Math.floor(elapsed / 60)}h sem registrar saida`,
+              });
+            }
+          }
+        }
+      }
+
+      res.json({
+        totalEmployees: activeEmployees.length,
+        workingNow: workingNow.size,
+        absentToday,
+        overtimeHours: "0h",
+        alerts,
+      });
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      res.status(500).json({ message: "Erro ao carregar dashboard" });
+    }
+  });
+
+  app.get("/api/admin/recent-records", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const records = await storage.getTimeRecordsByCompany(companyId);
+      const employees = await storage.getEmployeesByCompany(companyId);
+      const empMap = new Map(employees.map(e => [e.id, e]));
+
+      const enriched = records.slice(0, 20).map(r => ({
+        ...r,
+        userName: empMap.get(r.userId)?.name || "Desconhecido",
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      console.error("Recent records error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.get("/api/admin/employees", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const employees = await storage.getEmployeesByCompany(companyId);
+      const todayRecords = await storage.getTimeRecordsByCompany(companyId);
+
+      const employeeRecords: Record<string, any[]> = {};
+      for (const r of todayRecords) {
+        if (!employeeRecords[r.userId]) employeeRecords[r.userId] = [];
+        employeeRecords[r.userId].push(r);
+      }
+
+      const enriched = employees.map(e => ({
+        ...e,
+        password: undefined,
+        isWorking: (employeeRecords[e.id]?.length || 0) % 2 === 1,
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      console.error("Employees error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.post("/api/admin/employees", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const parsed = createEmployeeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos" });
+      }
+      const { name, username, email, password, department, position, workHoursMinutes } = parsed.data;
+
+      const existing = await storage.getUserByUsername(username);
+      if (existing) return res.status(400).json({ message: "Usuario ja existe" });
+
+      const employee = await storage.createUser({
+        username,
+        password,
+        name,
+        email,
+        role: "employee",
+        companyId,
+        department: department || null,
+        position: position || null,
+        workHoursMinutes: workHoursMinutes || null,
+        mustChangePassword: true,
+        active: true,
+      });
+
+      const { password: _, ...safe } = employee;
+      res.json(safe);
+    } catch (err) {
+      console.error("Create employee error:", err);
+      res.status(500).json({ message: "Erro ao criar funcionario" });
+    }
+  });
+
+  app.put("/api/admin/employees/:id", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const { name, email, department, position, workHoursMinutes, password } = req.body;
+      const data: any = { name, email, department: department || null, position: position || null, workHoursMinutes: workHoursMinutes || null };
+      if (password) data.password = password;
+
+      const updated = await storage.updateUser(req.params.id, data);
+      if (!updated) return res.status(404).json({ message: "Funcionario nao encontrado" });
+
+      const { password: _, ...safe } = updated;
+      res.json(safe);
+    } catch (err) {
+      console.error("Update employee error:", err);
+      res.status(500).json({ message: "Erro ao atualizar" });
+    }
+  });
+
+  app.patch("/api/admin/employees/:id/toggle", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const { active } = req.body;
+      const updated = await storage.updateUser(req.params.id, { active });
+      if (!updated) return res.status(404).json({ message: "Funcionario nao encontrado" });
+      res.json({ message: "Status atualizado" });
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.get("/api/admin/company", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const company = await storage.getCompany(req.user!.companyId!);
+      if (!company) return res.status(404).json({ message: "Empresa nao encontrada" });
+      res.json(company);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.put("/api/admin/company", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const updated = await storage.updateCompany(req.user!.companyId!, req.body);
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao atualizar" });
+    }
+  });
+
+  app.get("/api/admin/holidays", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const holidays = await storage.getHolidaysByCompany(req.user!.companyId!);
+      res.json(holidays);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.post("/api/admin/holidays", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const holiday = await storage.createHoliday({
+        ...req.body,
+        companyId: req.user!.companyId!,
+      });
+      res.json(holiday);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.delete("/api/admin/holidays/:id", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      await storage.deleteHoliday(req.params.id);
+      res.json({ message: "Feriado removido" });
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.get("/api/admin/adjustments", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const adjustments = await storage.getAdjustmentsByCompany(req.user!.companyId!);
+      const employees = await storage.getEmployeesByCompany(req.user!.companyId!);
+      const empMap = new Map(employees.map(e => [e.id, e]));
+
+      const enriched = adjustments.map(a => ({
+        ...a,
+        userName: empMap.get(a.userId)?.name || "Desconhecido",
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.patch("/api/admin/adjustments/:id/review", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updateAdjustment(req.params.id, {
+        status,
+        reviewedBy: req.user!.id,
+        reviewedAt: new Date(),
+      });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  // Employee routes
+  app.get("/api/employee/today", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+      const company = user.companyId ? await storage.getCompany(user.companyId) : null;
+      const records = await storage.getTodayRecords(user.id);
+
+      const workHoursMinutes = user.workHoursMinutes || company?.workHoursMinutes || 528;
+
+      let bankHours = 0;
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const allRecords = await storage.getTimeRecordsByUser(user.id);
+      const monthRecords = allRecords.filter(r => new Date(r.timestamp) >= startOfMonth);
+
+      const dayMap: Record<string, any[]> = {};
+      for (const r of monthRecords) {
+        const day = new Date(r.timestamp).toISOString().split("T")[0];
+        if (!dayMap[day]) dayMap[day] = [];
+        dayMap[day].push(r);
+      }
+
+      for (const [day, dayRecords] of Object.entries(dayMap)) {
+        let totalMinutes = 0;
+        const sorted = dayRecords.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        for (let i = 0; i < sorted.length; i += 2) {
+          const entry = new Date(sorted[i].timestamp).getTime();
+          const exit = sorted[i + 1] ? new Date(sorted[i + 1].timestamp).getTime() : Date.now();
+          totalMinutes += (exit - entry) / 60000;
+        }
+        const tolerance = company?.toleranceMinutes || 10;
+        const diff = totalMinutes - workHoursMinutes;
+        if (Math.abs(diff) > tolerance) {
+          bankHours += diff;
+        }
+      }
+
+      res.json({
+        records,
+        workHoursMinutes,
+        bankHours: Math.round(bankHours),
+      });
+    } catch (err) {
+      console.error("Today error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.post("/api/employee/punch", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+      const todayRecords = await storage.getTodayRecords(user.id);
+      const type = todayRecords.length % 2 === 0 ? "entry" : "exit";
+
+      const { latitude, longitude } = req.body;
+
+      const record = await storage.createTimeRecord({
+        userId: user.id,
+        companyId: user.companyId!,
+        type,
+        latitude: latitude || null,
+        longitude: longitude || null,
+        address: null,
+        ip: (req.headers["x-forwarded-for"] as string) || req.ip || null,
+      });
+
+      res.json(record);
+    } catch (err) {
+      console.error("Punch error:", err);
+      res.status(500).json({ message: "Erro ao registrar ponto" });
+    }
+  });
+
+  app.get("/api/employee/history", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+      const company = user.companyId ? await storage.getCompany(user.companyId) : null;
+      const workHoursMinutes = user.workHoursMinutes || company?.workHoursMinutes || 528;
+      const tolerance = company?.toleranceMinutes || 10;
+
+      const allRecords = await storage.getTimeRecordsByUser(user.id);
+
+      const dayMap: Record<string, any[]> = {};
+      for (const r of allRecords) {
+        const day = new Date(r.timestamp).toISOString().split("T")[0];
+        if (!dayMap[day]) dayMap[day] = [];
+        dayMap[day].push(r);
+      }
+
+      const history = Object.entries(dayMap)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .slice(0, 30)
+        .map(([date, records]) => {
+          const sorted = records.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          let totalMinutes = 0;
+          for (let i = 0; i < sorted.length; i += 2) {
+            const entry = new Date(sorted[i].timestamp).getTime();
+            const exit = sorted[i + 1] ? new Date(sorted[i + 1].timestamp).getTime() : 0;
+            if (exit) totalMinutes += (exit - entry) / 60000;
+          }
+
+          const diff = totalMinutes - workHoursMinutes;
+          const overtime = diff > tolerance ? Math.round(diff) : 0;
+          const deficit = diff < -tolerance ? Math.round(Math.abs(diff)) : 0;
+
+          const d = new Date(date + "T12:00:00");
+          const dateFormatted = d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+
+          return {
+            date,
+            dateFormatted,
+            records: sorted,
+            totalMinutes: Math.round(totalMinutes),
+            overtime,
+            deficit,
+          };
+        });
+
+      res.json(history);
+    } catch (err) {
+      console.error("History error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.get("/api/employee/adjustments", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const adjustments = await storage.getAdjustmentsByUser(req.user!.id);
+      res.json(adjustments);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.post("/api/employee/adjustments", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+      const adjustment = await storage.createAdjustmentRequest({
+        userId: user.id,
+        companyId: user.companyId!,
+        date: req.body.date,
+        requestedTime: req.body.requestedTime,
+        type: req.body.type,
+        reason: req.body.reason,
+      });
+
+      res.json(adjustment);
+    } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  // Master routes
+  app.get("/api/master/dashboard", authMiddleware(["admin_master"]), async (req: AuthRequest, res) => {
+    try {
+      const allCompanies = await storage.getAllCompanies();
+      const totalUsers = await storage.countAllUsers();
+      const todayRecords = await storage.countTodayRecords();
+
+      const companiesWithCounts = await Promise.all(
+        allCompanies.map(async (c) => ({
+          ...c,
+          employeeCount: await storage.countUsersByCompany(c.id),
+        }))
+      );
+
+      res.json({
+        totalCompanies: allCompanies.length,
+        totalUsers,
+        todayRecords,
+        activeCompanies: allCompanies.filter(c => c.active).length,
+        companies: companiesWithCounts,
+      });
+    } catch (err) {
+      console.error("Master dashboard error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  return httpServer;
+}
