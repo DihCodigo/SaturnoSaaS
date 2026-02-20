@@ -180,7 +180,7 @@ export default function EmployeeClockPage() {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Clock className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-bold text-lg" data-testid="text-emp-brand">PontoMax</span>
+            <span className="font-bold text-lg" data-testid="text-emp-brand">Saturno</span>
           </div>
           <div className="flex items-center gap-2">
             <Button size="icon" variant="ghost" onClick={toggleTheme} data-testid="button-emp-theme">

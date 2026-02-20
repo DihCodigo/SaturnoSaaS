@@ -1,4 +1,4 @@
-# PontoMax - Sistema de Controle de Ponto Eletronico
+# Saturno - Sistema de Controle de Ponto Eletronico
 
 ## Overview
 SaaS system for electronic time clock management. Multi-company, multi-role.

@@ -32,6 +32,7 @@ export default function EmployeesPage() {
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
+    refetchInterval: 30000,
   });
 
   const createMutation = useMutation({

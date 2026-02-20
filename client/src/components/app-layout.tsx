@@ -51,7 +51,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Clock className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg hidden sm:inline" data-testid="text-brand">PontoMax</span>
+              <span className="font-bold text-lg hidden sm:inline" data-testid="text-brand">Saturno</span>
             </Link>
           </div>
 

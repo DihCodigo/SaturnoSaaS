@@ -68,7 +68,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
             <Clock className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-app-title">PontoMax</h1>
+          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-app-title">Saturno</h1>
           <p className="text-muted-foreground mt-1">Sistema de Controle de Ponto Eletronico</p>
         </div>
 

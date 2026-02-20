@@ -18,6 +18,7 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
+    refetchInterval: 30000,
   });
 
   const { data: recentRecords, isLoading: isLoadingRecords } = useQuery({
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
+    refetchInterval: 30000,
   });
 
   const statCards = [

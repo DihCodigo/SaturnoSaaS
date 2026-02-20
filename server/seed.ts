@@ -33,7 +33,7 @@ export async function seedDatabase() {
       username: "admin",
       password: "admin123",
       name: "Administrador Master",
-      email: "master@pontomax.com",
+      email: "master@saturno.com",
       role: "admin_master",
       companyId: null,
       department: null,
