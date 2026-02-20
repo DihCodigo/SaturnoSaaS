@@ -1,0 +1,383 @@
+
+Não esqueça que a funcionalidade diferencia pelo acesso na tela de login pelo administrador e o funcionario, deixa bem esclarecido isso, o administrador tem um acesso unico e o funcionario tem o dele gerado pelo administrador
+
+Quero que você gere um sistema SaaS completo de controle de ponto eletrônico online, pronto para produção e comercialização.
+
+O sistema deve ser arquitetado de forma profissional, escalável, seguro e preparado para multiempresa.
+
+🔧 PILHA OBRIGATÓRIA
+
+Front-end:
+
+Angular 17+ < se nao for possivel em Angular pode tentar outra tecnologia, importante o projeto pronto>
+
+Arquitetura modular
+
+Carregamento lento
+
+Guardas de rota
+
+Interceptores JWT
+
+PWA (Progressive Web App)
+
+Responsivo (Prioridade para Dispositivos Móveis)
+
+Tema claro/escuro
+
+UI moderna (Angular Material ou PrimeNG)
+
+Backend:
+
+Node.js com NestJS
+
+Arquitetura Arquitetura Limpa
+
+Separação em
+
+
+MySQL
+
+JWT + Token de Atualização
+
+Bcrypt para hash de senha
+
+Limite de taxa
+
+Capacete
+
+CORS configurado
+
+Registros
+
+Validação com class-validator
+
+Banco:
+
+MySQL 8+
+
+Compatível com MySQL Workbench
+
+Implantar:
+
+Docker
+
+Docker Compose
+
+Estrutural para VPS
+
+Variáveis ​​via .env
+
+👥 MULTIEMPRESA (OBRIGATÓRIO)
+
+O sistema deve funcionar como SaaS:
+
+Cada empresa tem seus próprios funcionários
+
+Isolamento total de dados por company_id
+
+Administrador mestre (doe para SaaS)
+
+Administrador da empresa
+
+Funcionário
+
+🔐 TIPOS DE USUÁRIO
+
+ADMIN MASTER (Dono do sistema)
+
+Gerencia empresas
+
+Visualiza a ação!
+
+Controla planos
+
+ADMINISTRAÇÃO DA EMPRESA
+
+Pode se cadastrar sozinho
+
+Cadastra funcionários
+
+Defina regras
+
+Gera!
+
+FUNCIONÁRIO
+
+Não pode se cadastrar
+
+Criado apenas pelo Admin
+
+Obrigado a trocar senha no primeiro login
+
+🕒 FUNCIONALIDADES DO FUNCIONÁRIO
+
+Registrador ponto ilimitado (entrada/saída)
+
+Geolocalização obrigatória ao bater ponto
+
+FotoAce via câmera
+
+Registro salva:
+
+Latitude
+
+Longitude
+
+Endereço
+
+IP
+
+Servidor de dados/hora
+
+Foto
+
+Cronômetro diário em tempo real:
+
+Tempo
+
+Tempo restante
+
+Horário de saída
+
+Visualização banco de horas
+
+Solicitar ajuste de ponto
+
+Histórico completo
+
+IA assistente flutuante que:
+
+Informa tempo restante
+
+Alerta inconsistências
+
+Sugere saída
+
+Mostrar saldo banco de horas
+
+🧠 REGRAS DE JORNADA E CÁLCULO
+
+Admin definir carga horária personalizada (ex: 8h48)
+
+Admin define período de fechamento mensal (ex: 02/05 a 03/05)
+
+Cálculo:
+
+Horas extras 50%
+
+Horas extras 100% (domingo/feriado)
+
+Horas extras 150% (configurável)
+
+Banco de horas mensal
+
+Identificação automática de:
+
+Falta de registro
+
+Entrada sem saída
+
+Dia incompleto
+
+Sistema gera ocorrência automática
+
+Admin recebe alerta
+
+Pode solicitar ajuste
+
+📊 PAINEL ADMIN EMPRESA
+
+Painel de controle com:
+
+mel
+
+Trabalhando agora
+
+Ausentes
+
+Horas extras acumuladas
+
+Horas
+
+Lista de funcionários com status em tempo real
+
+CRUD completo de funcionários
+
+de setor
+
+Definição carga horária individual
+
+Gestão banco de horas
+
+Um ajuste
+
+Configuração adicional legal
+
+Cadastro de feriados nacionais e regionais
+
+📍 GEOLOCALIZAÇÃO
+
+Só permite bater ponto dentro do raio configurável
+
+Admin definir raio (ex: 100 metros)
+
+Bloqueia registro fora da área
+
+Salva coordenadas no banco
+
+📸 FOTO OBRIGATÓRIA
+
+Webcam
+
+Salvar imagem no servidor (ou S3)
+
+Armazenar URL no banco
+
+Antifraude básico (não aceita upload manual)
+
+📱 PWA
+
+Instalável como aplicativo
+
+Ícone personalizado
+
+Funciona offline (sincroniza depois)
+
+notificações push
+
+🔔 WHATSAPP
+
+Integração via API oficial ou Twilio
+
+Envio :
+
+Alerta de esquecimento de ponto
+
+Notificação de
+
+Aviso de fechamento de banco
+
+📊 PAINEL FINANCEIRO
+
+Projeção de custo mensal por funcionário
+
+Cálculo do bloco de:
+
+Horas extras
+
+sismo
+
+Impacto financeiro
+
+Gráficoss
+
+Exportação para Excel
+
+📄 RELATÓRIOS PROFISSIONAIS
+
+Relatório individual detalhado
+
+Relatório mensal consolidado
+
+Exportador:
+
+PDF profissional
+
+Excel
+
+Assinatura digital do relatório
+
+Código QR para validação
+
+Layout corporativo
+
+🔐 SEGURANÇA MÁXIMA
+
+Senhas criptografadas com bcrypt
+
+Atualizar token armazenado seguro
+
+Registros de auditoria:
+
+Quem alterou
+
+Quando
+
+O que foi alterado
+
+contra:
+
+Injeção de SQL
+
+XSS
+
+CSRF
+
+Criptografia de dados sensíveis
+
+Logs imutáveis
+
+Limite de login
+
+2FA (Autômato de 2 fatores)
+
+🔎 REGISTRO DE AUDITORIA
+
+Tabela de auditórios:
+
+ID do usuário
+
+Ação
+
+entidade
+
+id_da_entidade
+
+dados_antes
+
+dados_após
+
+IP
+
+criado_em
+
+🎨 DESIGN DE FRONTEND
+
+Layout moderno
+
+Azul corporativo + cinza neutro
+
+Interface limpa
+
+Ímã
+
+UX intuitivo
+
+Prioridade para dispositivos móveis
+
+🗂 ENTREGAR:
+
+Estrutura completa de backend de massas
+
+Estrutura completa de front-end Angular
+
+Script MySQL completo
+
+me passa tambem comando no workbench que eu executo aqui detalhe que a senha é vazia la
+
+Exemplo de arquivo .env
+
+Guia de instalação
+
+Guia de implantação
+
+Arquitetura explicada
+
+Fluxo de autenticação explicado
+
+Me entreguei tudo já pronto explicando como rodar e executável
+
+
+Tem uma lei agora de tolarancia de 10 minutos para os funcionarios se voce sabe dela inclui isso tambem OK
+
