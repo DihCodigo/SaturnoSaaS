@@ -95,10 +95,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTimeRecordsByCompany(companyId: string, startDate?: Date, endDate?: Date): Promise<TimeRecord[]> {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const conditions = [eq(timeRecords.companyId, companyId)];
+    if (startDate) {
+      conditions.push(gte(timeRecords.timestamp, startDate));
+    } else {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      conditions.push(gte(timeRecords.timestamp, startOfDay));
+    }
+    if (endDate) conditions.push(lte(timeRecords.timestamp, endDate));
     return db.select().from(timeRecords)
-      .where(and(eq(timeRecords.companyId, companyId), gte(timeRecords.timestamp, startOfDay)))
+      .where(and(...conditions))
       .orderBy(desc(timeRecords.timestamp));
   }
 

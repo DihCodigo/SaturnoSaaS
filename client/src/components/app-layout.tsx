@@ -4,7 +4,7 @@ import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Clock, LayoutDashboard, Users, Settings, Calendar, FileText, Sun, Moon, LogOut, Menu, X, Building2 } from "lucide-react";
+import { Clock, LayoutDashboard, Users, Settings, Calendar, FileText, Sun, Moon, LogOut, Menu, X, Building2, BarChart3 } from "lucide-react";
 import { useState } from "react";
 
 interface AppLayoutProps {
@@ -22,6 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { path: "/admin/employees", label: "Funcionarios", icon: Users },
     { path: "/admin/adjustments", label: "Ajustes", icon: FileText },
     { path: "/admin/holidays", label: "Feriados", icon: Calendar },
+    { path: "/admin/reports", label: "Relatorios", icon: BarChart3 },
     { path: "/admin/settings", label: "Configuracoes", icon: Settings },
   ];
 

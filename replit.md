@@ -40,6 +40,7 @@ client/src/
       employees.tsx    - Employee CRUD management
       adjustments.tsx  - Adjustment request reviews
       holidays.tsx     - Holiday management
+      reports.tsx      - Reports with CSV export
       settings.tsx     - Company settings
     employee/
       clock.tsx        - Time clock with live timer
@@ -73,6 +74,7 @@ shared/
 - PATCH /api/admin/employees/:id/toggle - Toggle active
 - GET/PUT /api/admin/company - Company settings
 - GET/POST/DELETE /api/admin/holidays - Holidays
+- GET /api/admin/reports - Reports with date/employee filters
 - GET/PATCH /api/admin/adjustments - Adjustments
 - GET /api/employee/today - Today's records + timer
 - POST /api/employee/punch - Clock in/out

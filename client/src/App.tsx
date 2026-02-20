@@ -14,6 +14,7 @@ import EmployeesPage from "@/pages/admin/employees";
 import AdjustmentsPage from "@/pages/admin/adjustments";
 import HolidaysPage from "@/pages/admin/holidays";
 import SettingsPage from "@/pages/admin/settings";
+import ReportsPage from "@/pages/admin/reports";
 import EmployeeClockPage from "@/pages/employee/clock";
 import EmployeeHistoryPage from "@/pages/employee/history";
 import EmployeeAdjustmentsPage from "@/pages/employee/adjustments";
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/admin/employees" component={() => <ProtectedRoute component={EmployeesPage} roles={["admin_company"]} />} />
       <Route path="/admin/adjustments" component={() => <ProtectedRoute component={AdjustmentsPage} roles={["admin_company"]} />} />
       <Route path="/admin/holidays" component={() => <ProtectedRoute component={HolidaysPage} roles={["admin_company"]} />} />
+      <Route path="/admin/reports" component={() => <ProtectedRoute component={ReportsPage} roles={["admin_company"]} />} />
       <Route path="/admin/settings" component={() => <ProtectedRoute component={SettingsPage} roles={["admin_company"]} />} />
 
       <Route path="/employee" component={() => <ProtectedRoute component={EmployeeClockPage} roles={["employee"]} />} />

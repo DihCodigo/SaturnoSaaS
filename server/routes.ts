@@ -387,6 +387,127 @@ export async function registerRoutes(
     }
   });
 
+  // Reports routes
+  app.get("/api/admin/reports", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const { startDate, endDate, employeeId } = req.query;
+      const company = await storage.getCompany(companyId);
+      const employees = await storage.getEmployeesByCompany(companyId);
+      const holidays = await storage.getHolidaysByCompany(companyId);
+      const tolerance = company?.toleranceMinutes || 10;
+
+      const start = startDate ? new Date(startDate as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const end = endDate ? new Date(endDate as string) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      const targetEmployees = employeeId
+        ? employees.filter(e => e.id === employeeId)
+        : employees.filter(e => e.active);
+
+      const holidayDates = new Set(holidays.map(h => h.date));
+
+      const allRecords = await storage.getTimeRecordsByCompany(companyId, start, end);
+      const recordsByUser: Record<string, typeof allRecords> = {};
+      for (const r of allRecords) {
+        if (!recordsByUser[r.userId]) recordsByUser[r.userId] = [];
+        recordsByUser[r.userId].push(r);
+      }
+
+      const report = [];
+      for (const emp of targetEmployees) {
+        const records = recordsByUser[emp.id] || [];
+        const workHoursMinutes = emp.workHoursMinutes || company?.workHoursMinutes || 528;
+
+        const dayMap: Record<string, any[]> = {};
+        for (const r of records) {
+          const day = new Date(r.timestamp).toISOString().split("T")[0];
+          if (!dayMap[day]) dayMap[day] = [];
+          dayMap[day].push(r);
+        }
+
+        let totalWorkedMinutes = 0;
+        let totalExpectedMinutes = 0;
+        let totalBankMinutes = 0;
+        let daysWorked = 0;
+        let lateCount = 0;
+        const dailyDetails: any[] = [];
+
+        for (const [day, dayRecords] of Object.entries(dayMap)) {
+          const sorted = dayRecords.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          let dayMinutes = 0;
+          for (let i = 0; i < sorted.length; i += 2) {
+            const entry = new Date(sorted[i].timestamp).getTime();
+            const exit = sorted[i + 1] ? new Date(sorted[i + 1].timestamp).getTime() : null;
+            if (exit) {
+              dayMinutes += (exit - entry) / 60000;
+            }
+          }
+
+          const isHoliday = holidayDates.has(day);
+          const dayOfWeek = new Date(day).getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const expectedMinutes = (isHoliday || isWeekend) ? 0 : workHoursMinutes;
+
+          totalWorkedMinutes += dayMinutes;
+          totalExpectedMinutes += expectedMinutes;
+          daysWorked++;
+
+          const diff = dayMinutes - expectedMinutes;
+          if (Math.abs(diff) > tolerance) {
+            totalBankMinutes += diff;
+          }
+
+          if (sorted.length > 0 && expectedMinutes > 0) {
+            const firstEntry = new Date(sorted[0].timestamp);
+            const entryMinutes = firstEntry.getHours() * 60 + firstEntry.getMinutes();
+            if (entryMinutes > 8 * 60 + tolerance) {
+              lateCount++;
+            }
+          }
+
+          dailyDetails.push({
+            date: day,
+            records: sorted.length,
+            firstEntry: sorted[0] ? new Date(sorted[0].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
+            lastExit: sorted.length > 1 ? new Date(sorted[sorted.length - 1].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
+            workedMinutes: Math.round(dayMinutes),
+            expectedMinutes,
+            balance: Math.round(diff),
+            isHoliday,
+            isWeekend,
+          });
+        }
+
+        report.push({
+          employee: {
+            id: emp.id,
+            name: emp.name,
+            department: emp.department,
+            position: emp.position,
+          },
+          summary: {
+            totalWorkedMinutes: Math.round(totalWorkedMinutes),
+            totalExpectedMinutes,
+            totalBankMinutes: Math.round(totalBankMinutes),
+            daysWorked,
+            lateCount,
+          },
+          dailyDetails: dailyDetails.sort((a, b) => a.date.localeCompare(b.date)),
+        });
+      }
+
+      res.json({
+        period: { start: start.toISOString(), end: end.toISOString() },
+        company: { name: company?.name, cnpj: company?.cnpj },
+        report,
+      });
+    } catch (err) {
+      console.error("Reports error:", err);
+      res.status(500).json({ message: "Erro ao gerar relatorio" });
+    }
+  });
+
   // Employee routes
   app.get("/api/employee/today", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
     try {
