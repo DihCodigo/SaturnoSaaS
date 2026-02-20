@@ -104,7 +104,13 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full ${record.type === "entry" ? "bg-green-500" : "bg-red-500"}`} />
                         <div>
-                          <p className="text-sm font-medium">{record.userName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{record.userName}</p>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${record.isWorking ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`} data-testid={`status-${record.id}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${record.isWorking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+                              {record.isWorking ? "Online" : "Offline"}
+                            </span>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {new Date(record.timestamp).toLocaleString("pt-BR")}
                           </p>

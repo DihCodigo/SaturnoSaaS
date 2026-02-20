@@ -208,9 +208,17 @@ export async function registerRoutes(
       const employees = await storage.getEmployeesByCompany(companyId);
       const empMap = new Map(employees.map(e => [e.id, e]));
 
+      const lastPunchByUser = new Map<number, string>();
+      for (const r of records) {
+        if (!lastPunchByUser.has(r.userId)) {
+          lastPunchByUser.set(r.userId, r.type);
+        }
+      }
+
       const enriched = records.slice(0, 20).map(r => ({
         ...r,
         userName: empMap.get(r.userId)?.name || "Desconhecido",
+        isWorking: lastPunchByUser.get(r.userId) === "entry",
       }));
 
       res.json(enriched);
