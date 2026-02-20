@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { AppLayout } from "@/components/app-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -113,7 +114,7 @@ export default function EmployeesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight" data-testid="text-employees-title">Funcionarios</h1>
-            <p className="text-muted-foreground">Gerencie os funcionarios da empresa</p>
+            <p className="text-muted-foreground mt-1">Gerencie os funcionarios da empresa</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
             <DialogTrigger asChild>
@@ -128,36 +129,36 @@ export default function EmployeesPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Nome Completo</Label>
                     <Input data-testid="input-emp-name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Usuario</Label>
                     <Input data-testid="input-emp-username" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required disabled={!!editingEmployee} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Email</Label>
                     <Input data-testid="input-emp-email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>{editingEmployee ? "Nova Senha (deixe vazio para manter)" : "Senha Inicial"}</Label>
                     <Input data-testid="input-emp-password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required={!editingEmployee} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Setor</Label>
                     <Input data-testid="input-emp-department" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Cargo</Label>
                     <Input data-testid="input-emp-position" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} />
                   </div>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label>Carga Horaria Diaria</Label>
                   <Select value={formData.workHoursMinutes} onValueChange={(v) => setFormData({ ...formData, workHoursMinutes: v })}>
                     <SelectTrigger data-testid="select-work-hours">
@@ -196,11 +197,13 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i}>
-                <CardContent className="pt-6">
-                  <div className="space-y-3">
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-20" />
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -208,53 +211,66 @@ export default function EmployeesPage() {
           </div>
         ) : filteredEmployees.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredEmployees.map((emp: any) => (
-              <Card key={emp.id} className={`${!emp.active ? "opacity-60" : ""}`} data-testid={`card-employee-${emp.id}`}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{emp.name}</p>
-                      <p className="text-sm text-muted-foreground">@{emp.username}</p>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        {emp.department && <Badge variant="secondary">{emp.department}</Badge>}
-                        {emp.position && <Badge variant="outline">{emp.position}</Badge>}
+            {filteredEmployees.map((emp: any) => {
+              const initials = emp.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+              return (
+                <Card key={emp.id} className={`transition-opacity ${!emp.active ? "opacity-50" : ""}`} data-testid={`card-employee-${emp.id}`}>
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="relative shrink-0">
+                          <Avatar className="w-10 h-10">
+                            <AvatarFallback className={`text-xs font-semibold ${emp.isWorking ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${emp.isWorking ? "bg-emerald-500" : emp.active ? "bg-gray-400 dark:bg-gray-600" : "bg-red-400 dark:bg-red-600"}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate">{emp.name}</p>
+                          <p className="text-xs text-muted-foreground">@{emp.username}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {emp.department && <Badge variant="secondary" className="text-[10px]">{emp.department}</Badge>}
+                            {emp.position && <Badge variant="outline" className="text-[10px]">{emp.position}</Badge>}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${emp.isWorking ? "bg-emerald-500 animate-pulse" : emp.active ? "bg-gray-400" : "bg-red-400"}`} />
+                            <span className={`text-xs font-medium ${emp.isWorking ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                              {emp.isWorking ? "Trabalhando" : emp.active ? "Offline" : "Inativo"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className={`w-2 h-2 rounded-full ${emp.isWorking ? "bg-green-500" : "bg-muted-foreground/30"}`} />
-                        <span className="text-xs text-muted-foreground">
-                          {emp.isWorking ? "Trabalhando" : emp.active ? "Offline" : "Inativo"}
-                        </span>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" data-testid={`button-emp-menu-${emp.id}`}>
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEdit(emp)}>
+                            <Pencil className="w-4 h-4 mr-2" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toggleMutation.mutate({ id: emp.id, active: !emp.active })}>
+                            {emp.active ? (
+                              <><Ban className="w-4 h-4 mr-2" /> Desativar</>
+                            ) : (
+                              <><CheckCircle className="w-4 h-4 mr-2" /> Ativar</>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" data-testid={`button-emp-menu-${emp.id}`}>
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(emp)}>
-                          <Pencil className="w-4 h-4 mr-2" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toggleMutation.mutate({ id: emp.id, active: !emp.active })}>
-                          {emp.active ? (
-                            <><Ban className="w-4 h-4 mr-2" /> Desativar</>
-                          ) : (
-                            <><CheckCircle className="w-4 h-4 mr-2" /> Ativar</>
-                          )}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
-              <p className="text-muted-foreground">Nenhum funcionario encontrado</p>
+            <CardContent className="py-16 text-center">
+              <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground/20" />
+              <p className="font-medium text-muted-foreground">Nenhum funcionario encontrado</p>
               <p className="text-sm text-muted-foreground mt-1">Clique em "Novo Funcionario" para adicionar</p>
             </CardContent>
           </Card>

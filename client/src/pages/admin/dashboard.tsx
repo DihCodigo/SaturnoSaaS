@@ -3,8 +3,9 @@ import { AppLayout } from "@/components/app-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle, XCircle } from "lucide-react";
+import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle, XCircle, Wifi, WifiOff } from "lucide-react";
 
 export default function AdminDashboard() {
   const { token } = useAuth();
@@ -21,10 +22,10 @@ export default function AdminDashboard() {
     refetchInterval: 30000,
   });
 
-  const { data: recentRecords, isLoading: isLoadingRecords } = useQuery({
-    queryKey: ["/api/admin/recent-records"],
+  const { data: employees, isLoading: isLoadingEmployees } = useQuery({
+    queryKey: ["/api/admin/employees"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/recent-records", {
+      const res = await fetch("/api/admin/employees", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch");
@@ -34,39 +35,41 @@ export default function AdminDashboard() {
   });
 
   const statCards = [
-    { label: "Total Funcionarios", value: stats?.totalEmployees ?? 0, icon: Users, color: "text-blue-600 dark:text-blue-400" },
-    { label: "Trabalhando Agora", value: stats?.workingNow ?? 0, icon: CheckCircle, color: "text-green-600 dark:text-green-400" },
-    { label: "Ausentes Hoje", value: stats?.absentToday ?? 0, icon: XCircle, color: "text-red-600 dark:text-red-400" },
-    { label: "Horas Extras (Mes)", value: stats?.overtimeHours ?? "0h", icon: TrendingUp, color: "text-amber-600 dark:text-amber-400" },
+    { label: "Total Funcionarios", value: stats?.totalEmployees ?? 0, icon: Users, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40" },
+    { label: "Trabalhando Agora", value: stats?.workingNow ?? 0, icon: CheckCircle, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+    { label: "Ausentes Hoje", value: stats?.absentToday ?? 0, icon: XCircle, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40" },
+    { label: "Horas Extras (Mes)", value: stats?.overtimeHours ?? "0h", icon: TrendingUp, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40" },
   ];
+
+  const activeEmployees = employees?.filter((e: any) => e.active) || [];
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">Painel de Controle</h1>
-          <p className="text-muted-foreground">Visao geral da empresa</p>
+          <p className="text-muted-foreground mt-1">Visao geral da empresa</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((stat) => (
-            <Card key={stat.label}>
-              <CardContent className="pt-6">
+            <Card key={stat.label} className="overflow-hidden">
+              <CardContent className="p-5">
                 {isLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-8 w-16" />
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-14" />
                   </div>
                 ) : (
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{stat.label}</p>
-                      <p className="text-3xl font-bold mt-1" data-testid={`stat-${stat.label.toLowerCase().replace(/\s/g, '-')}`}>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                      <p className="text-3xl font-bold" data-testid={`stat-${stat.label.toLowerCase().replace(/\s/g, '-')}`}>
                         {stat.value}
                       </p>
                     </div>
-                    <div className={`p-2 rounded-lg bg-muted ${stat.color}`}>
-                      <stat.icon className="w-5 h-5" />
+                    <div className={`p-2.5 rounded-xl ${stat.bg}`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
                     </div>
                   </div>
                 )}
@@ -75,66 +78,95 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Registros Recentes
-              </CardTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  Equipe
+                </CardTitle>
+                {!isLoadingEmployees && (
+                  <Badge variant="secondary" className="font-normal">
+                    {activeEmployees.filter((e: any) => e.isWorking).length} online
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
-              {isLoadingRecords ? (
+              {isLoadingEmployees ? (
                 <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
+                  {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="flex-1 space-y-1">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-9 w-9 rounded-full" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-28" />
+                        <Skeleton className="h-3 w-20" />
                       </div>
-                      <Skeleton className="h-5 w-16" />
+                      <Skeleton className="h-5 w-14 rounded-full" />
                     </div>
                   ))}
                 </div>
-              ) : recentRecords?.length > 0 ? (
-                <div className="space-y-3">
-                  {recentRecords.map((record: any) => (
-                    <div key={record.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0" data-testid={`record-${record.id}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${record.type === "entry" ? "bg-green-500" : "bg-red-500"}`} />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{record.userName}</p>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${record.isWorking ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`} data-testid={`status-${record.id}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${record.isWorking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
-                              {record.isWorking ? "Online" : "Offline"}
-                            </span>
+              ) : activeEmployees.length > 0 ? (
+                <div className="space-y-1">
+                  {activeEmployees.map((emp: any) => {
+                    const initials = emp.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+                    return (
+                      <div
+                        key={emp.id}
+                        className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors"
+                        data-testid={`employee-status-${emp.id}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative">
+                            <Avatar className="w-9 h-9">
+                              <AvatarFallback className={`text-xs font-semibold ${emp.isWorking ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${emp.isWorking ? "bg-emerald-500" : "bg-gray-400 dark:bg-gray-600"}`} />
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(record.timestamp).toLocaleString("pt-BR")}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{emp.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {emp.position || emp.department || `@${emp.username}`}
+                            </p>
+                          </div>
                         </div>
+                        <Badge
+                          variant={emp.isWorking ? "default" : "secondary"}
+                          className={`shrink-0 text-[10px] font-medium gap-1 ${emp.isWorking ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30" : ""}`}
+                          data-testid={`badge-status-${emp.id}`}
+                        >
+                          {emp.isWorking ? (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Online
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                              Offline
+                            </>
+                          )}
+                        </Badge>
                       </div>
-                      <Badge variant={record.type === "entry" ? "default" : "secondary"}>
-                        {record.type === "entry" ? "Entrada" : "Saida"}
-                      </Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Nenhum registro hoje</p>
+                <div className="text-center py-10 text-muted-foreground">
+                  <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                  <p className="text-sm">Nenhum funcionario cadastrado</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                 Alertas
               </CardTitle>
             </CardHeader>
@@ -142,24 +174,26 @@ export default function AdminDashboard() {
               {isLoading ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
+                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
                   ))}
                 </div>
               ) : stats?.alerts?.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {stats.alerts.map((alert: any, idx: number) => (
                     <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                      <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                      <div>
+                      <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-900/30">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium">{alert.title}</p>
-                        <p className="text-xs text-muted-foreground">{alert.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <div className="text-center py-10 text-muted-foreground">
+                  <CheckCircle className="w-10 h-10 mx-auto mb-3 opacity-20" />
                   <p className="text-sm">Nenhum alerta no momento</p>
                 </div>
               )}

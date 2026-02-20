@@ -62,17 +62,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg mb-4">
             <Clock className="w-8 h-8 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight" data-testid="text-app-title">Saturno</h1>
           <p className="text-muted-foreground mt-1">Sistema de Controle de Ponto Eletronico</p>
         </div>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="pb-4">
             <Tabs value={loginType} onValueChange={(v) => setLoginType(v as "admin" | "employee")}>
               <TabsList className="grid w-full grid-cols-2">
@@ -136,7 +136,7 @@ export default function LoginPage() {
                   Ainda nao tem conta?{" "}
                   <button
                     type="button"
-                    className="text-primary font-medium"
+                    className="text-primary font-medium hover:underline"
                     data-testid="link-register"
                     onClick={() => navigate("/register")}
                   >
@@ -155,6 +155,10 @@ export default function LoginPage() {
             )}
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Saturno v1.0
+        </p>
       </div>
     </div>
   );

@@ -41,13 +41,13 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="lg:hidden text-muted-foreground"
+              className="lg:hidden text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               data-testid="button-mobile-menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link href={user?.role === "admin_master" ? "/master" : "/admin"} className="flex items-center gap-2">
+            <Link href={user?.role === "admin_master" ? "/master" : "/admin"} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Clock className="w-4 h-4 text-primary-foreground" />
               </div>
@@ -63,7 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Button
                     variant={isActive ? "secondary" : "ghost"}
                     size="sm"
-                    className="gap-2"
+                    className={`gap-2 text-sm ${isActive ? "font-semibold" : "font-normal"}`}
                     data-testid={`nav-${item.label.toLowerCase()}`}
                   >
                     <item.icon className="w-4 h-4" />
@@ -74,22 +74,22 @@ export function AppLayout({ children }: AppLayoutProps) {
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <Button size="icon" variant="ghost" onClick={toggleTheme} data-testid="button-theme-toggle">
+          <div className="flex items-center gap-1.5">
+            <Button size="icon" variant="ghost" onClick={toggleTheme} data-testid="button-theme-toggle" className="h-8 w-8">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 pl-2" data-testid="button-user-menu">
                   <Avatar className="w-7 h-7">
-                    <AvatarFallback className="text-xs bg-primary text-primary-foreground">{initials}</AvatarFallback>
+                    <AvatarFallback className="text-xs bg-primary text-primary-foreground font-semibold">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-sm">{user?.name}</span>
+                  <span className="hidden sm:inline text-sm font-medium">{user?.name}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">{user?.name}</p>
+                <div className="px-2 py-2">
+                  <p className="text-sm font-semibold">{user?.name}</p>
                   <p className="text-xs text-muted-foreground">{user?.role === "admin_master" ? "Admin Master" : "Admin Empresa"}</p>
                 </div>
                 <DropdownMenuSeparator />
@@ -109,7 +109,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 const isActive = location === item.path;
                 return (
                   <Link key={item.path} href={item.path} onClick={() => setMobileMenuOpen(false)}>
-                    <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start gap-2" size="sm">
+                    <Button variant={isActive ? "secondary" : "ghost"} className={`w-full justify-start gap-2 ${isActive ? "font-semibold" : ""}`} size="sm">
                       <item.icon className="w-4 h-4" />
                       {item.label}
                     </Button>
