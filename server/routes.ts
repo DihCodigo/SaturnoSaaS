@@ -405,8 +405,8 @@ export async function registerRoutes(
       const holidays = await storage.getHolidaysByCompany(companyId);
       const tolerance = company?.toleranceMinutes || 10;
 
-      const start = startDate ? new Date(startDate as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string + "T00:00:00") : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const end = endDate ? new Date(endDate as string + "T23:59:59.999") : new Date();
       end.setHours(23, 59, 59, 999);
 
       const targetEmployees = employeeId
@@ -422,6 +422,19 @@ export async function registerRoutes(
         recordsByUser[r.userId].push(r);
       }
 
+      const allDatesInRange: string[] = [];
+      const cursor = new Date(start);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      const rangeEnd = end > today ? today : end;
+      while (cursor <= rangeEnd) {
+        const y = cursor.getFullYear();
+        const mo = String(cursor.getMonth() + 1).padStart(2, "0");
+        const d = String(cursor.getDate()).padStart(2, "0");
+        allDatesInRange.push(`${y}-${mo}-${d}`);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
       const report = [];
       for (const emp of targetEmployees) {
         const records = recordsByUser[emp.id] || [];
@@ -429,7 +442,11 @@ export async function registerRoutes(
 
         const dayMap: Record<string, any[]> = {};
         for (const r of records) {
-          const day = new Date(r.timestamp).toISOString().split("T")[0];
+          const ts = new Date(r.timestamp);
+          const y = ts.getFullYear();
+          const mo = String(ts.getMonth() + 1).padStart(2, "0");
+          const d = String(ts.getDate()).padStart(2, "0");
+          const day = `${y}-${mo}-${d}`;
           if (!dayMap[day]) dayMap[day] = [];
           dayMap[day].push(r);
         }
@@ -439,30 +456,79 @@ export async function registerRoutes(
         let totalBankMinutes = 0;
         let daysWorked = 0;
         let lateCount = 0;
+        let absentCount = 0;
         const dailyDetails: any[] = [];
 
-        for (const [day, dayRecords] of Object.entries(dayMap)) {
+        for (const day of allDatesInRange) {
+          const dayRecords = dayMap[day] || [];
+          const dateParts = day.split("-").map(Number);
+          const dayDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+          const dayOfWeek = dayDate.getDay();
+          const isHoliday = holidayDates.has(day);
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const expectedMinutes = (isHoliday || isWeekend) ? 0 : workHoursMinutes;
+
+          if (dayRecords.length === 0) {
+            totalExpectedMinutes += expectedMinutes;
+            if (expectedMinutes > 0) absentCount++;
+            dailyDetails.push({
+              date: day,
+              punches: [],
+              workedMinutes: 0,
+              expectedMinutes,
+              balance: expectedMinutes > 0 ? -expectedMinutes : 0,
+              isHoliday,
+              isWeekend,
+              isAbsent: expectedMinutes > 0,
+              isLate: false,
+              isStillWorking: false,
+            });
+            if (expectedMinutes > 0) {
+              totalBankMinutes += -expectedMinutes;
+            }
+            continue;
+          }
+
           const sorted = dayRecords.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+          const punches = sorted.map((r: any) => ({
+            time: new Date(r.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            type: r.type as string,
+            latitude: r.latitude,
+            longitude: r.longitude,
+          }));
+
           let dayMinutes = 0;
+          const hasOpenSession = sorted.length % 2 === 1;
+          const nowMs = Date.now();
+          const nowDate = new Date();
+          const todayStr = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, "0")}-${String(nowDate.getDate()).padStart(2, "0")}`;
+          const isToday = day === todayStr;
+          const isStillWorking = hasOpenSession && isToday;
+
           for (let i = 0; i < sorted.length; i += 2) {
             const entry = new Date(sorted[i].timestamp).getTime();
-            const exit = sorted[i + 1] ? new Date(sorted[i + 1].timestamp).getTime() : null;
+            let exit: number | null = null;
+            if (sorted[i + 1]) {
+              exit = new Date(sorted[i + 1].timestamp).getTime();
+            } else if (isToday) {
+              exit = nowMs;
+            } else {
+              const endOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59).getTime();
+              exit = endOfDay;
+            }
             if (exit) {
               dayMinutes += (exit - entry) / 60000;
             }
           }
 
-          const isHoliday = holidayDates.has(day);
-          const dayOfWeek = new Date(day).getDay();
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-          const expectedMinutes = (isHoliday || isWeekend) ? 0 : workHoursMinutes;
-
           totalWorkedMinutes += dayMinutes;
           totalExpectedMinutes += expectedMinutes;
-          daysWorked++;
+          if (dayRecords.length > 0) daysWorked++;
 
           const diff = dayMinutes - expectedMinutes;
-          if (Math.abs(diff) > tolerance) {
+          let isLate = false;
+          if (expectedMinutes > 0 && Math.abs(diff) > tolerance) {
             totalBankMinutes += diff;
           }
 
@@ -471,19 +537,21 @@ export async function registerRoutes(
             const entryMinutes = firstEntry.getHours() * 60 + firstEntry.getMinutes();
             if (entryMinutes > 8 * 60 + tolerance) {
               lateCount++;
+              isLate = true;
             }
           }
 
           dailyDetails.push({
             date: day,
-            records: sorted.length,
-            firstEntry: sorted[0] ? new Date(sorted[0].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
-            lastExit: sorted.length > 1 ? new Date(sorted[sorted.length - 1].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
+            punches,
             workedMinutes: Math.round(dayMinutes),
             expectedMinutes,
             balance: Math.round(diff),
             isHoliday,
             isWeekend,
+            isAbsent: false,
+            isLate,
+            isStillWorking: isStillWorking && isToday,
           });
         }
 
@@ -491,8 +559,10 @@ export async function registerRoutes(
           employee: {
             id: emp.id,
             name: emp.name,
+            username: emp.username,
             department: emp.department,
             position: emp.position,
+            workHoursMinutes,
           },
           summary: {
             totalWorkedMinutes: Math.round(totalWorkedMinutes),
@@ -500,8 +570,14 @@ export async function registerRoutes(
             totalBankMinutes: Math.round(totalBankMinutes),
             daysWorked,
             lateCount,
+            absentCount,
+            workDays: allDatesInRange.filter(d => {
+              const parts = d.split("-").map(Number);
+              const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+              return dt.getDay() !== 0 && dt.getDay() !== 6 && !holidayDates.has(d);
+            }).length,
           },
-          dailyDetails: dailyDetails.sort((a, b) => a.date.localeCompare(b.date)),
+          dailyDetails,
         });
       }
 
