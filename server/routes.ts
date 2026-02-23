@@ -715,6 +715,7 @@ export async function registerRoutes(
           const todayStr = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, "0")}-${String(nowDate.getDate()).padStart(2, "0")}`;
           const isToday = day === todayStr;
           const isStillWorking = hasOpenSession && isToday;
+          const hasIrregularity = hasOpenSession && !isToday;
 
           for (let i = 0; i < sorted.length; i += 2) {
             const entry = new Date(sorted[i].timestamp).getTime();
@@ -723,9 +724,6 @@ export async function registerRoutes(
               exit = new Date(sorted[i + 1].timestamp).getTime();
             } else if (isToday) {
               exit = nowMs;
-            } else {
-              const endOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59).getTime();
-              exit = endOfDay;
             }
             if (exit) {
               dayMinutes += (exit - entry) / 60000;
@@ -761,7 +759,9 @@ export async function registerRoutes(
             isWeekend,
             isAbsent: false,
             isLate,
-            isStillWorking: isStillWorking && isToday,
+            isStillWorking,
+            hasIrregularity,
+            punchCount: sorted.length,
           });
         }
 

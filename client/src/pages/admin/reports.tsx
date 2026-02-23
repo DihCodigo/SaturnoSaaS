@@ -163,7 +163,7 @@ function EmployeeReport({ emp, expanded, onToggle }: { emp: any; expanded: boole
                                 }`}
                               >
                                 {p.latitude && <MapPin className="w-2.5 h-2.5" />}
-                                {p.time.slice(0, 5)}
+                                {p.time}
                               </span>
                             ))}
                             {d.isStillWorking && (
@@ -196,6 +196,12 @@ function EmployeeReport({ emp, expanded, onToggle }: { emp: any; expanded: boole
                           {d.isAbsent && <Badge variant="destructive" className="text-[10px] px-1.5">Falta</Badge>}
                           {d.isLate && <Badge className="text-[10px] px-1.5 bg-amber-500 hover:bg-amber-600">Atraso</Badge>}
                           {d.isStillWorking && <Badge className="text-[10px] px-1.5 bg-blue-500 hover:bg-blue-600">Trabalhando</Badge>}
+                          {d.hasIrregularity && (
+                            <Badge className="text-[10px] px-1.5 bg-red-500 hover:bg-red-600 gap-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              Irregular
+                            </Badge>
+                          )}
                         </div>
                       </td>
                     </tr>
