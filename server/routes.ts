@@ -10,6 +10,53 @@ function safeUser(user: any) {
   return safe;
 }
 
+function calculateEaster(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function getBrazilianNationalHolidays(year: number): Array<{ name: string; date: string }> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const addDays = (d: Date, days: number) => {
+    const r = new Date(d);
+    r.setDate(r.getDate() + days);
+    return r;
+  };
+
+  const easter = calculateEaster(year);
+
+  return [
+    { name: "Confraternização Universal", date: `${year}-01-01` },
+    { name: "Carnaval", date: fmt(addDays(easter, -47)) },
+    { name: "Carnaval", date: fmt(addDays(easter, -48)) },
+    { name: "Quarta-feira de Cinzas", date: fmt(addDays(easter, -46)) },
+    { name: "Sexta-feira Santa", date: fmt(addDays(easter, -2)) },
+    { name: "Tiradentes", date: `${year}-04-21` },
+    { name: "Dia do Trabalho", date: `${year}-05-01` },
+    { name: "Corpus Christi", date: fmt(addDays(easter, 60)) },
+    { name: "Independência do Brasil", date: `${year}-09-07` },
+    { name: "Nossa Senhora Aparecida", date: `${year}-10-12` },
+    { name: "Finados", date: `${year}-11-02` },
+    { name: "Proclamação da República", date: `${year}-11-15` },
+    { name: "Consciência Negra", date: `${year}-11-20` },
+    { name: "Natal", date: `${year}-12-25` },
+  ];
+}
+
 const registerBodySchema = z.object({
   companyName: z.string().min(2),
   cnpj: z.string().min(11),
@@ -408,6 +455,32 @@ export async function registerRoutes(
       res.json(holiday);
     } catch (err) {
       res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.post("/api/admin/holidays/seed-national", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const year = req.body.year || new Date().getFullYear();
+      const nationalHolidays = getBrazilianNationalHolidays(year);
+      const existing = await storage.getHolidaysByCompany(companyId);
+      const existingDates = new Set(existing.map(h => h.date));
+
+      let added = 0;
+      for (const h of nationalHolidays) {
+        if (!existingDates.has(h.date)) {
+          await storage.createHoliday({
+            name: h.name,
+            date: h.date,
+            national: true,
+            companyId,
+          });
+          added++;
+        }
+      }
+      res.json({ message: `${added} feriados nacionais adicionados`, added, total: nationalHolidays.length });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao carregar feriados nacionais" });
     }
   });
 
