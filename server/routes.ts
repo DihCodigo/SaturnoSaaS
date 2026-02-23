@@ -936,8 +936,55 @@ export async function registerRoutes(
   app.get("/api/employee/adjustments", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
     try {
       const adjustments = await storage.getAdjustmentsByUser(req.user!.id);
-      res.json(adjustments);
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.json(adjustments);
+
+      const allRecords = await storage.getTimeRecordsByUser(user.id);
+
+      const recordsByDay: Record<string, any[]> = {};
+      for (const r of allRecords) {
+        const day = new Date(r.timestamp).toISOString().split("T")[0];
+        if (!recordsByDay[day]) recordsByDay[day] = [];
+        recordsByDay[day].push(r);
+      }
+
+      const enriched = adjustments.map(a => {
+        const dayRecords = recordsByDay[a.date] || [];
+        const sorted = dayRecords.sort((x: any, y: any) => new Date(x.timestamp).getTime() - new Date(y.timestamp).getTime());
+        const punches = sorted.map((r: any) => ({
+          time: new Date(r.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          type: r.type as string,
+        }));
+
+        const dayDate = new Date(a.date + "T12:00:00");
+        const dateFormatted = dayDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+
+        const expectedPunches = [
+          { label: "1a Entrada", order: 0 },
+          { label: "Saida Almoco", order: 1 },
+          { label: "Volta Almoco", order: 2 },
+          { label: "Saida Final", order: 3 },
+        ];
+
+        const timeline = expectedPunches.map((ep, idx) => ({
+          label: ep.label,
+          time: punches[idx]?.time || null,
+          type: punches[idx]?.type || null,
+          missing: !punches[idx],
+        }));
+
+        return {
+          ...a,
+          dateFormatted,
+          punches,
+          punchCount: punches.length,
+          timeline,
+        };
+      });
+
+      res.json(enriched);
     } catch (err) {
+      console.error("Employee adjustments error:", err);
       res.status(500).json({ message: "Erro" });
     }
   });

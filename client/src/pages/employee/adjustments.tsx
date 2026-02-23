@@ -211,7 +211,7 @@ export default function EmployeeAdjustmentsPage() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Calendar className="w-3 h-3" />
-                          <span>Data: {adj.date}</span>
+                          <span>{adj.dateFormatted || adj.date}</span>
                         </div>
                         {adj.adminNote && (
                           <div className="text-xs bg-amber-50 dark:bg-amber-950/20 p-2.5 rounded border border-amber-200 dark:border-amber-800">
@@ -233,6 +233,34 @@ export default function EmployeeAdjustmentsPage() {
                         Responder
                       </Button>
                     </div>
+
+                    {adj.timeline && (
+                      <div className="pt-2 border-t border-amber-200/50 dark:border-amber-800/30">
+                        <p className="text-[11px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Registros do dia</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {adj.timeline.map((step: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+                                step.missing
+                                  ? "bg-red-50 dark:bg-red-950/20 border border-dashed border-red-300 dark:border-red-800 text-red-700 dark:text-red-400"
+                                  : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400"
+                              }`}
+                            >
+                              {step.missing ? (
+                                <AlertTriangle className="w-3 h-3 shrink-0" />
+                              ) : (
+                                <Clock className="w-3 h-3 shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <span className="block text-[10px] opacity-70">{step.label}</span>
+                                <span className="font-semibold">{step.missing ? "Nao registrado" : step.time}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -292,36 +320,74 @@ export default function EmployeeAdjustmentsPage() {
           </DialogHeader>
           {respondDialog && (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-muted/50 space-y-1.5">
+              <div className="p-3 rounded-lg bg-muted/50 space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium">Data: {respondDialog.date}</span>
+                  <span className="font-medium">{respondDialog.dateFormatted || respondDialog.date}</span>
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {irregularityTypeLabels[respondDialog.irregularityType || respondDialog.type]}
                 </Badge>
                 {respondDialog.adminNote && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{respondDialog.adminNote}</p>
+                  <div className="text-xs bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-800 mt-1">
+                    <span className="font-medium text-amber-700 dark:text-amber-400">Admin: </span>
+                    <span className="text-amber-800 dark:text-amber-300">{respondDialog.adminNote}</span>
+                  </div>
                 )}
               </div>
 
+              {respondDialog.timeline && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Seus registros neste dia</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {respondDialog.timeline.map((step: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium ${
+                          step.missing
+                            ? "bg-red-50 dark:bg-red-950/20 border border-dashed border-red-300 dark:border-red-800 text-red-700 dark:text-red-400"
+                            : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400"
+                        }`}
+                      >
+                        {step.missing ? (
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        ) : (
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <span className="block text-[10px] opacity-70">{step.label}</span>
+                          <span className="font-bold text-sm">{step.missing ? "Faltando" : step.time}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {respondDialog.punchCount === 0 && (
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium">Nenhum registro encontrado neste dia.</p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <Label>Horario correto</Label>
+                <Label className="text-sm font-medium">Informe o horario correto</Label>
                 <Input
                   type="time"
                   value={respondData.requestedTime}
                   onChange={(e) => setRespondData({ ...respondData, requestedTime: e.target.value })}
                   data-testid="input-respond-time"
+                  className="text-lg h-12"
                   required
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Informe o horario que deveria ter sido registrado
+                </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label>Motivo / Justificativa</Label>
+                <Label className="text-sm font-medium">Motivo / Justificativa</Label>
                 <Textarea
                   value={respondData.reason}
                   onChange={(e) => setRespondData({ ...respondData, reason: e.target.value })}
-                  placeholder="Explique o motivo do ajuste..."
+                  placeholder="Ex: Esqueci de registrar a saida. Sai do trabalho as 18:00."
                   data-testid="input-respond-reason"
                   required
                 />
