@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
-import { Clock, Sun, Moon, LogOut, MapPin, Timer, History, FileText, Loader2, PlayCircle, StopCircle } from "lucide-react";
+import { Clock, Sun, Moon, LogOut, MapPin, Timer, History, FileText, Loader2, PlayCircle, StopCircle, AlertTriangle } from "lucide-react";
 
 function formatMinutes(minutes: number): string {
   const h = Math.floor(Math.abs(minutes) / 60);
@@ -119,6 +120,8 @@ export default function EmployeeClockPage() {
   const [location] = useLocation();
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; lastPunchTime: string; lastPunchType: string; minutesSince: number } | null>(null);
+  const [pendingCoords, setPendingCoords] = useState<{ latitude?: number; longitude?: number } | null>(null);
 
   const { data: todayData, isLoading } = useQuery({
     queryKey: ["/api/employee/today"],
@@ -130,29 +133,45 @@ export default function EmployeeClockPage() {
     refetchInterval: 30000,
   });
 
+  const doPunch = async (data: { latitude?: number; longitude?: number; force?: boolean }) => {
+    const res = await fetch("/api/employee/punch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (res.status === 409 && json.recentPunch) {
+      throw { recentPunch: true, ...json };
+    }
+    if (!res.ok) {
+      throw new Error(json.message);
+    }
+    return json;
+  };
+
   const punchMutation = useMutation({
-    mutationFn: async (data: { latitude?: number; longitude?: number }) => {
-      const res = await fetch("/api/employee/punch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message);
-      }
-      return res.json();
-    },
+    mutationFn: doPunch,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/employee/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/employee/history"] });
+      setConfirmDialog(null);
+      setPendingCoords(null);
       toast({
         title: data.type === "entry" ? "Entrada Registrada" : "Saida Registrada",
         description: `Ponto registrado as ${new Date(data.timestamp).toLocaleTimeString("pt-BR")}`,
       });
     },
-    onError: (err: Error) => {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    onError: (err: any) => {
+      if (err.recentPunch) {
+        setConfirmDialog({
+          message: err.message,
+          lastPunchTime: err.lastPunchTime,
+          lastPunchType: err.lastPunchType,
+          minutesSince: err.minutesSince,
+        });
+      } else {
+        toast({ title: "Erro", description: err.message || "Erro ao registrar ponto", variant: "destructive" });
+      }
     },
   });
 
@@ -161,20 +180,28 @@ export default function EmployeeClockPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          const c = { latitude: position.coords.latitude, longitude: position.coords.longitude };
           setCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
           setGeoStatus("success");
-          punchMutation.mutate({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+          setPendingCoords(c);
+          punchMutation.mutate(c);
         },
         () => {
           setGeoStatus("error");
+          setPendingCoords({});
           punchMutation.mutate({});
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
       setGeoStatus("error");
+      setPendingCoords({});
       punchMutation.mutate({});
     }
+  };
+
+  const handleForceConfirm = () => {
+    punchMutation.mutate({ ...(pendingCoords || {}), force: true });
   };
 
   const isWorking = todayData?.records?.length % 2 === 1;
@@ -313,6 +340,59 @@ export default function EmployeeClockPage() {
           </>
         )}
       </main>
+
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) setConfirmDialog(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Registro Recente Detectado
+            </DialogTitle>
+          </DialogHeader>
+          {confirmDialog && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                  Voce ja tem um registro recente:
+                </p>
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg text-amber-900 dark:text-amber-200">{confirmDialog.lastPunchType} as {confirmDialog.lastPunchTime}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400">ha {confirmDialog.minutesSince} minuto{confirmDialog.minutesSince !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Tem certeza que deseja registrar um novo ponto? Isso pode gerar registros duplicados.
+              </p>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setConfirmDialog(null)}
+                  data-testid="button-cancel-punch"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={handleForceConfirm}
+                  disabled={punchMutation.isPending}
+                  data-testid="button-force-punch"
+                >
+                  {punchMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Sim, Registrar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <nav className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-50">
         <div className="flex items-center justify-around h-16 max-w-2xl mx-auto">

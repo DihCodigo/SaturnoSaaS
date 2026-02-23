@@ -859,8 +859,25 @@ export async function registerRoutes(
 
       const todayRecords = await storage.getTodayRecords(user.id);
       const type = todayRecords.length % 2 === 0 ? "entry" : "exit";
+      const { latitude, longitude, force } = req.body;
 
-      const { latitude, longitude } = req.body;
+      if (!force && todayRecords.length > 0) {
+        const lastRecord = todayRecords[todayRecords.length - 1];
+        const lastTime = new Date(lastRecord.timestamp).getTime();
+        const minutesSince = (Date.now() - lastTime) / 60000;
+
+        if (minutesSince < 10) {
+          const lastTimeStr = new Date(lastRecord.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          const lastType = lastRecord.type === "entry" ? "Entrada" : "Saida";
+          return res.status(409).json({
+            message: `Voce ja registrou ${lastType} as ${lastTimeStr} (ha ${Math.floor(minutesSince)} minutos). Deseja registrar novamente?`,
+            recentPunch: true,
+            lastPunchTime: lastTimeStr,
+            lastPunchType: lastType,
+            minutesSince: Math.floor(minutesSince),
+          });
+        }
+      }
 
       const record = await storage.createTimeRecord({
         userId: user.id,
