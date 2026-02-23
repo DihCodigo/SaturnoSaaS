@@ -130,7 +130,7 @@ export default function HolidaysPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
+                  {Array.from({ length: 2050 - currentYear + 2 }, (_, i) => currentYear - 1 + i).map((y) => (
                     <SelectItem key={y} value={String(y)}>{y}</SelectItem>
                   ))}
                 </SelectContent>
