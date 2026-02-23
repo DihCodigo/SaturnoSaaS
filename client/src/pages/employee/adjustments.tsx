@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Clock, History, FileText, Plus, Sun, Moon, LogOut, Loader2 } from "lucide-react";
+import { Clock, History, FileText, Plus, Sun, Moon, LogOut, Loader2, AlertTriangle, Send, Calendar } from "lucide-react";
 
 export default function EmployeeAdjustmentsPage() {
   const { user, token, logout } = useAuth();
@@ -24,6 +24,8 @@ export default function EmployeeAdjustmentsPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ date: "", requestedTime: "", type: "entry", reason: "" });
+  const [respondDialog, setRespondDialog] = useState<any>(null);
+  const [respondData, setRespondData] = useState({ requestedTime: "", reason: "" });
 
   const { data: adjustments, isLoading } = useQuery({
     queryKey: ["/api/employee/adjustments"],
@@ -55,10 +57,51 @@ export default function EmployeeAdjustmentsPage() {
     },
   });
 
-  const statusLabels: Record<string, string> = { pending: "Pendente", approved: "Aprovado", rejected: "Rejeitado" };
-  const statusVariants: Record<string, "default" | "secondary" | "destructive"> = { pending: "secondary", approved: "default", rejected: "destructive" };
+  const respondMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const res = await fetch(`/api/employee/adjustments/${id}/respond`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employee/adjustments"] });
+      toast({ title: "Sucesso", description: "Resposta enviada para aprovacao!" });
+      setRespondDialog(null);
+      setRespondData({ requestedTime: "", reason: "" });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Falha ao enviar resposta", variant: "destructive" });
+    },
+  });
+
+  const statusLabels: Record<string, string> = {
+    awaiting_employee: "Acao Necessaria",
+    pending: "Pendente",
+    approved: "Aprovado",
+    rejected: "Rejeitado",
+  };
+  const statusColors: Record<string, string> = {
+    awaiting_employee: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    pending: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    approved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
+    rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  };
+
+  const irregularityTypeLabels: Record<string, string> = {
+    missing_exit: "Saida nao registrada",
+    missing_lunch: "Almoco nao registrado",
+    entry: "Entrada",
+    exit: "Saida",
+  };
 
   const initials = user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
+
+  const awaitingActions = adjustments?.filter((a: any) => a.status === "awaiting_employee") || [];
+  const otherAdjustments = adjustments?.filter((a: any) => a.status !== "awaiting_employee") || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,38 +186,166 @@ export default function EmployeeAdjustmentsPage() {
           </Dialog>
         </div>
 
-        {isLoading ? (
-          <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
-        ) : adjustments?.length > 0 ? (
+        {awaitingActions.length > 0 && (
           <div className="space-y-3">
-            {adjustments.map((adj: any) => (
-              <Card key={adj.id} data-testid={`card-emp-adj-${adj.id}`}>
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {awaitingActions.length} ajuste{awaitingActions.length > 1 ? "s" : ""} aguardando sua resposta
+              </p>
+            </div>
+
+            {awaitingActions.map((adj: any) => (
+              <Card key={adj.id} className="border-amber-200 dark:border-amber-800/50" data-testid={`card-emp-adj-awaiting-${adj.id}`}>
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm">
-                          {adj.date} - {adj.requestedTime}
-                        </p>
-                        <Badge variant={statusVariants[adj.status]}>{statusLabels[adj.status]}</Badge>
-                        <Badge variant="outline">{adj.type === "entry" ? "Entrada" : "Saida"}</Badge>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[adj.status]}`}>
+                            {statusLabels[adj.status]}
+                          </span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {irregularityTypeLabels[adj.irregularityType || adj.type]}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          <span>Data: {adj.date}</span>
+                        </div>
+                        {adj.adminNote && (
+                          <div className="text-xs bg-amber-50 dark:bg-amber-950/20 p-2.5 rounded border border-amber-200 dark:border-amber-800">
+                            <span className="font-medium text-amber-700 dark:text-amber-400">Mensagem do Admin: </span>
+                            <span className="text-amber-800 dark:text-amber-300">{adj.adminNote}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{adj.reason}</p>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 shrink-0"
+                        onClick={() => {
+                          setRespondDialog(adj);
+                          setRespondData({ requestedTime: "", reason: "" });
+                        }}
+                        data-testid={`button-respond-${adj.id}`}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        Responder
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
-        ) : (
+        )}
+
+        {isLoading ? (
+          <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+        ) : otherAdjustments.length > 0 ? (
+          <div className="space-y-3">
+            {otherAdjustments.map((adj: any) => (
+              <Card key={adj.id} data-testid={`card-emp-adj-${adj.id}`}>
+                <CardContent className="py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">
+                          {adj.date} {adj.requestedTime ? `- ${adj.requestedTime}` : ""}
+                        </p>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[adj.status] || "bg-gray-100 text-gray-800"}`}>
+                          {statusLabels[adj.status] || adj.status}
+                        </span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {irregularityTypeLabels[adj.irregularityType || adj.type]}
+                        </Badge>
+                        {adj.createdBy === "admin" && (
+                          <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">Solicitado pelo Admin</Badge>
+                        )}
+                      </div>
+                      {adj.adminNote && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">Admin: {adj.adminNote}</p>
+                      )}
+                      {adj.reason && (
+                        <p className="text-xs text-muted-foreground">Motivo: {adj.reason}</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : awaitingActions.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
               <p className="text-muted-foreground">Nenhuma solicitacao de ajuste</p>
             </CardContent>
           </Card>
-        )}
+        ) : null}
       </main>
+
+      <Dialog open={!!respondDialog} onOpenChange={(open) => { if (!open) setRespondDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Responder Solicitacao de Ajuste</DialogTitle>
+          </DialogHeader>
+          {respondDialog && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-muted/50 space-y-1.5">
+                <div className="flex items-center gap-2 text-sm">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">Data: {respondDialog.date}</span>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {irregularityTypeLabels[respondDialog.irregularityType || respondDialog.type]}
+                </Badge>
+                {respondDialog.adminNote && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{respondDialog.adminNote}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Horario correto</Label>
+                <Input
+                  type="time"
+                  value={respondData.requestedTime}
+                  onChange={(e) => setRespondData({ ...respondData, requestedTime: e.target.value })}
+                  data-testid="input-respond-time"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Motivo / Justificativa</Label>
+                <Textarea
+                  value={respondData.reason}
+                  onChange={(e) => setRespondData({ ...respondData, reason: e.target.value })}
+                  placeholder="Explique o motivo do ajuste..."
+                  data-testid="input-respond-reason"
+                  required
+                />
+              </div>
+
+              <Button
+                className="w-full gap-2"
+                onClick={() => {
+                  if (!respondData.requestedTime || !respondData.reason) {
+                    toast({ title: "Erro", description: "Preencha todos os campos", variant: "destructive" });
+                    return;
+                  }
+                  respondMutation.mutate({ id: respondDialog.id, data: respondData });
+                }}
+                disabled={respondMutation.isPending}
+                data-testid="button-confirm-respond"
+              >
+                {respondMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Enviar para Aprovacao
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <nav className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-50">
         <div className="flex items-center justify-around h-16 max-w-2xl mx-auto">
@@ -191,9 +362,14 @@ export default function EmployeeAdjustmentsPage() {
             </button>
           </Link>
           <Link href="/employee/adjustments">
-            <button type="button" className="flex flex-col items-center gap-1 text-primary">
+            <button type="button" className="flex flex-col items-center gap-1 text-primary relative">
               <FileText className="w-5 h-5" />
               <span className="text-[10px] font-medium">Ajustes</span>
+              {awaitingActions.length > 0 && (
+                <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
+                  {awaitingActions.length}
+                </span>
+              )}
             </button>
           </Link>
         </div>

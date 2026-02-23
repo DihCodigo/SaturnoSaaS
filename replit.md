@@ -22,11 +22,30 @@ Built with React + Express + PostgreSQL.
 - 10-minute tolerance rule (CLT)
 - Bank hours calculation
 - Employee management (CRUD)
-- Adjustment requests workflow
+- **Automatic irregularity detection** (missing exits, missing lunch records)
+- **Adjustment workflow**: Admin detects irregularity → sends request → Employee responds with time + reason → Admin approves
+- Adjustment requests (employee-initiated also supported)
 - Holiday management
 - Company settings (work hours, geo radius, tolerance)
+- Professional reports with CSV export
 - Dark/light theme
 - Mobile-first employee interface
+
+## Irregularity Detection System
+- **Automatic detection**: Scans last 30 days for incomplete punch records
+- **Types detected**: 
+  - `missing_exit`: Odd number of punches (entry without exit)
+  - `missing_lunch`: Only 2 punches (no lunch break recorded)
+- **Workflow**: 
+  1. System detects irregularities automatically
+  2. Admin sees alerts on dashboard (clickable, links to adjustments page)
+  3. Admin sends adjustment request to employee with a note
+  4. Employee sees "Acao Necessaria" with notification badge
+  5. Employee fills in correct time + reason
+  6. Admin reviews and approves/rejects
+  7. On approval, a time record is automatically inserted
+- **Statuses**: awaiting_employee → pending → approved/rejected
+- Irregularities already addressed (with non-rejected adjustments) are hidden from the list
 
 ## Project Structure
 ```
@@ -75,9 +94,12 @@ shared/
 - GET/PUT /api/admin/company - Company settings
 - GET/POST/DELETE /api/admin/holidays - Holidays
 - GET /api/admin/reports - Reports with date/employee filters
-- GET/PATCH /api/admin/adjustments - Adjustments
+- GET /api/admin/irregularities - Detect incomplete punches
+- GET/POST /api/admin/adjustments - Adjustments (admin can create for employees)
+- PATCH /api/admin/adjustments/:id/review - Approve/reject adjustments
 - GET /api/employee/today - Today's records + timer
 - POST /api/employee/punch - Clock in/out
 - GET /api/employee/history - Work history
 - GET/POST /api/employee/adjustments - Adjustments
+- PATCH /api/employee/adjustments/:id/respond - Employee responds to admin request
 - GET /api/master/dashboard - Master stats

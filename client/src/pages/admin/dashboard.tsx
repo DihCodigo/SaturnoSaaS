@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle, XCircle, Wifi, WifiOff } from "lucide-react";
+import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle, XCircle, Wifi, WifiOff, FileWarning } from "lucide-react";
+import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { token } = useAuth();
@@ -179,17 +180,39 @@ export default function AdminDashboard() {
                 </div>
               ) : stats?.alerts?.length > 0 ? (
                 <div className="space-y-2">
-                  {stats.alerts.map((alert: any, idx: number) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-900/30">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  {stats.alerts.map((alert: any, idx: number) => {
+                    const isIrregularity = alert.type === "irregularity";
+                    const isPending = alert.type === "pending_adjustment";
+                    const isClickable = isIrregularity || isPending;
+                    const content = (
+                      <div className={`flex items-start gap-3 p-3 rounded-lg ${
+                        isIrregularity ? "bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800" :
+                        isPending ? "bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800" :
+                        "bg-muted/50"
+                      } ${isClickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}>
+                        <div className={`p-1 rounded-md ${
+                          isIrregularity ? "bg-red-100 dark:bg-red-900/30" :
+                          isPending ? "bg-blue-100 dark:bg-blue-900/30" :
+                          "bg-amber-100 dark:bg-amber-900/30"
+                        }`}>
+                          {isIrregularity ? (
+                            <FileWarning className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          ) : (
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{alert.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{alert.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                    return isClickable ? (
+                      <Link key={idx} href="/admin/adjustments">{content}</Link>
+                    ) : (
+                      <div key={idx}>{content}</div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-10 text-muted-foreground">

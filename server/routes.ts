@@ -182,10 +182,64 @@ export async function registerRoutes(
               alerts.push({
                 title: `${emp.name} - Jornada estendida`,
                 description: `Trabalhando ha mais de ${Math.floor(elapsed / 60)}h sem registrar saida`,
+                type: "overtime",
               });
             }
           }
         }
+      }
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const recentRecords = await storage.getTimeRecordsByCompany(companyId, sevenDaysAgo, now);
+      const existingAdj = await storage.getAdjustmentsByCompany(companyId);
+      const adjKeys = new Set(existingAdj
+        .filter(a => a.irregularityType && a.status !== "rejected")
+        .map(a => `${a.userId}-${a.date}-${a.irregularityType}`));
+      const holidaysData = await storage.getHolidaysByCompany(companyId);
+      const holidayDates = new Set(holidaysData.map(h => h.date));
+
+      const recentByUser: Record<string, Record<string, any[]>> = {};
+      for (const r of recentRecords) {
+        if (!recentByUser[r.userId]) recentByUser[r.userId] = {};
+        const day = new Date(r.timestamp).toISOString().split("T")[0];
+        if (!recentByUser[r.userId][day]) recentByUser[r.userId][day] = [];
+        recentByUser[r.userId][day].push(r);
+      }
+
+      let irregularityCount = 0;
+      for (const emp of activeEmployees) {
+        const userDays = recentByUser[emp.id] || {};
+        for (const [day, recs] of Object.entries(userDays)) {
+          if (day === todayStr) continue;
+          if (holidayDates.has(day)) continue;
+          const dd = new Date(day + "T12:00:00");
+          if (dd.getDay() === 0 || dd.getDay() === 6) continue;
+          if (recs.length % 2 === 1 && !adjKeys.has(`${emp.id}-${day}-missing_exit`)) {
+            irregularityCount++;
+          }
+          if (recs.length === 2 && !adjKeys.has(`${emp.id}-${day}-missing_lunch`)) {
+            irregularityCount++;
+          }
+        }
+      }
+
+      if (irregularityCount > 0) {
+        alerts.unshift({
+          title: `${irregularityCount} irregularidade${irregularityCount > 1 ? "s" : ""} detectada${irregularityCount > 1 ? "s" : ""}`,
+          description: "Pontos incompletos nos ultimos 7 dias. Verifique em Ajustes.",
+          type: "irregularity",
+        });
+      }
+
+      const pendingAdj = existingAdj.filter(a => a.status === "pending").length;
+      if (pendingAdj > 0) {
+        alerts.push({
+          title: `${pendingAdj} ajuste${pendingAdj > 1 ? "s" : ""} pendente${pendingAdj > 1 ? "s" : ""}`,
+          description: "Solicitacoes de ajuste aguardando revisao.",
+          type: "pending_adjustment",
+        });
       }
 
       res.json({
@@ -194,6 +248,8 @@ export async function registerRoutes(
         absentToday,
         overtimeHours: "0h",
         alerts,
+        irregularityCount,
+        pendingAdjustments: pendingAdj,
       });
     } catch (err) {
       console.error("Dashboard error:", err);
@@ -364,6 +420,104 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/irregularities", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const companyId = req.user!.companyId!;
+      const employees = await storage.getEmployeesByCompany(companyId);
+      const activeEmployees = employees.filter(e => e.active);
+      const company = await storage.getCompany(companyId);
+      const holidays = await storage.getHolidaysByCompany(companyId);
+      const holidayDates = new Set(holidays.map(h => h.date));
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const allRecords = await storage.getTimeRecordsByCompany(companyId, thirtyDaysAgo, now);
+      const existingAdjustments = await storage.getAdjustmentsByCompany(companyId);
+      const adjustmentKeys = new Set(existingAdjustments
+        .filter(a => a.irregularityType && a.status !== "rejected")
+        .map(a => `${a.userId}-${a.date}-${a.irregularityType}`));
+
+      const recordsByUser: Record<string, Record<string, any[]>> = {};
+      for (const r of allRecords) {
+        if (!recordsByUser[r.userId]) recordsByUser[r.userId] = {};
+        const day = new Date(r.timestamp).toISOString().split("T")[0];
+        if (!recordsByUser[r.userId][day]) recordsByUser[r.userId][day] = [];
+        recordsByUser[r.userId][day].push(r);
+      }
+
+      const irregularities: any[] = [];
+
+      for (const emp of activeEmployees) {
+        const userDays = recordsByUser[emp.id] || {};
+
+        for (const [day, records] of Object.entries(userDays)) {
+          if (day === todayStr) continue;
+          if (holidayDates.has(day)) continue;
+          const dayDate = new Date(day + "T12:00:00");
+          const dayOfWeek = dayDate.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+          const sorted = records.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          const punchCount = sorted.length;
+
+          if (punchCount % 2 === 1) {
+            const key = `${emp.id}-${day}-missing_exit`;
+            if (!adjustmentKeys.has(key)) {
+              const lastPunch = sorted[sorted.length - 1];
+              const lastTime = new Date(lastPunch.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+              irregularities.push({
+                id: `${emp.id}-${day}-missing_exit`,
+                userId: emp.id,
+                userName: emp.name,
+                department: emp.department,
+                date: day,
+                dateFormatted: dayDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }),
+                type: "missing_exit",
+                description: `Ultimo registro: ${lastTime} (${punchCount} registro${punchCount > 1 ? "s" : ""}) - Falta saida`,
+                punchCount,
+                punches: sorted.map((r: any) => ({
+                  time: new Date(r.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+                  type: r.type,
+                })),
+              });
+            }
+          }
+
+          if (punchCount === 2) {
+            const key = `${emp.id}-${day}-missing_lunch`;
+            if (!adjustmentKeys.has(key)) {
+              const entryTime = new Date(sorted[0].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+              const exitTime = new Date(sorted[1].timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+              irregularities.push({
+                id: `${emp.id}-${day}-missing_lunch`,
+                userId: emp.id,
+                userName: emp.name,
+                department: emp.department,
+                date: day,
+                dateFormatted: dayDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }),
+                type: "missing_lunch",
+                description: `Entrada: ${entryTime}, Saida: ${exitTime} - Sem registro de almoco`,
+                punchCount,
+                punches: sorted.map((r: any) => ({
+                  time: new Date(r.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+                  type: r.type,
+                })),
+              });
+            }
+          }
+        }
+      }
+
+      irregularities.sort((a, b) => b.date.localeCompare(a.date));
+      res.json(irregularities);
+    } catch (err) {
+      console.error("Irregularities error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
   app.get("/api/admin/adjustments", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
     try {
       const adjustments = await storage.getAdjustmentsByCompany(req.user!.companyId!);
@@ -381,6 +535,38 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/adjustments", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
+    try {
+      const { userId, date, type, adminNote, irregularityType } = req.body;
+      if (!userId || !date || !type) {
+        return res.status(400).json({ message: "Dados incompletos" });
+      }
+
+      const employee = await storage.getUser(userId);
+      if (!employee || employee.companyId !== req.user!.companyId) {
+        return res.status(403).json({ message: "Funcionario nao encontrado" });
+      }
+
+      const adjustment = await storage.createAdjustmentRequest({
+        userId,
+        companyId: req.user!.companyId!,
+        date,
+        type,
+        requestedTime: null,
+        reason: null,
+        status: "awaiting_employee",
+        createdBy: "admin",
+        adminNote: adminNote || `Irregularidade detectada: ${type === "missing_exit" ? "Saida nao registrada" : "Almoco nao registrado"}`,
+        irregularityType: irregularityType || type,
+      });
+
+      res.json(adjustment);
+    } catch (err) {
+      console.error("Create admin adjustment error:", err);
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
   app.patch("/api/admin/adjustments/:id/review", authMiddleware(["admin_company"]), async (req: AuthRequest, res) => {
     try {
       const { status } = req.body;
@@ -389,8 +575,32 @@ export async function registerRoutes(
         reviewedBy: req.user!.id,
         reviewedAt: new Date(),
       });
+
+      if (status === "approved" && updated && updated.requestedTime) {
+        const [hours, minutes] = updated.requestedTime.split(":").map(Number);
+        const dateStr = updated.date;
+        const punchTime = new Date(dateStr + "T00:00:00");
+        punchTime.setHours(hours, minutes, 0, 0);
+
+        let punchType = updated.type;
+        if (punchType === "missing_exit") punchType = "exit";
+        else if (punchType === "missing_lunch") punchType = "exit";
+
+        await storage.createTimeRecordWithTimestamp({
+          userId: updated.userId,
+          companyId: updated.companyId,
+          type: punchType,
+          timestamp: punchTime,
+          latitude: null,
+          longitude: null,
+          address: "Ajuste aprovado",
+          ip: "adjustment",
+        });
+      }
+
       res.json(updated);
     } catch (err) {
+      console.error("Review adjustment error:", err);
       res.status(500).json({ message: "Erro" });
     }
   });
@@ -744,10 +954,38 @@ export async function registerRoutes(
         requestedTime: req.body.requestedTime,
         type: req.body.type,
         reason: req.body.reason,
+        createdBy: "employee",
       });
 
       res.json(adjustment);
     } catch (err) {
+      res.status(500).json({ message: "Erro" });
+    }
+  });
+
+  app.patch("/api/employee/adjustments/:id/respond", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
+    try {
+      const { requestedTime, reason } = req.body;
+      if (!requestedTime || !reason) {
+        return res.status(400).json({ message: "Horario e motivo sao obrigatorios" });
+      }
+
+      const adjustments = await storage.getAdjustmentsByUser(req.user!.id);
+      const adjustment = adjustments.find(a => a.id === req.params.id);
+      if (!adjustment) return res.status(404).json({ message: "Ajuste nao encontrado" });
+      if (adjustment.status !== "awaiting_employee") {
+        return res.status(400).json({ message: "Este ajuste nao esta aguardando resposta" });
+      }
+
+      const updated = await storage.updateAdjustment(req.params.id, {
+        requestedTime,
+        reason,
+        status: "pending",
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Employee respond error:", err);
       res.status(500).json({ message: "Erro" });
     }
   });

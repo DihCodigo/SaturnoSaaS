@@ -62,10 +62,13 @@ export const adjustmentRequests = pgTable("adjustment_requests", {
   userId: varchar("user_id").notNull().references(() => users.id),
   companyId: varchar("company_id").notNull().references(() => companies.id),
   date: text("date").notNull(),
-  requestedTime: text("requested_time").notNull(),
+  requestedTime: text("requested_time"),
   type: text("type").notNull(),
-  reason: text("reason").notNull(),
+  reason: text("reason"),
   status: text("status").notNull().default("pending"),
+  createdBy: text("created_by").notNull().default("employee"),
+  adminNote: text("admin_note"),
+  irregularityType: text("irregularity_type"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at"),
 });
@@ -74,7 +77,7 @@ export const insertCompanySchema = createInsertSchema(companies).omit({ id: true
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertTimeRecordSchema = createInsertSchema(timeRecords).omit({ id: true, timestamp: true });
 export const insertHolidaySchema = createInsertSchema(holidays).omit({ id: true });
-export const insertAdjustmentRequestSchema = createInsertSchema(adjustmentRequests).omit({ id: true, status: true, reviewedBy: true, reviewedAt: true });
+export const insertAdjustmentRequestSchema = createInsertSchema(adjustmentRequests).omit({ id: true, reviewedBy: true, reviewedAt: true });
 
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;

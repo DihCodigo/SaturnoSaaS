@@ -19,6 +19,7 @@ export interface IStorage {
   updateCompany(id: string, data: Partial<Company>): Promise<Company | undefined>;
   getAllCompanies(): Promise<Company[]>;
   createTimeRecord(record: InsertTimeRecord): Promise<TimeRecord>;
+  createTimeRecordWithTimestamp(record: InsertTimeRecord & { timestamp: Date }): Promise<TimeRecord>;
   getTimeRecordsByUser(userId: string, startDate?: Date, endDate?: Date): Promise<TimeRecord[]>;
   getTimeRecordsByCompany(companyId: string, startDate?: Date, endDate?: Date): Promise<TimeRecord[]>;
   getTodayRecords(userId: string): Promise<TimeRecord[]>;
@@ -83,6 +84,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTimeRecord(record: InsertTimeRecord): Promise<TimeRecord> {
+    const [r] = await db.insert(timeRecords).values(record).returning();
+    return r;
+  }
+
+  async createTimeRecordWithTimestamp(record: InsertTimeRecord & { timestamp: Date }): Promise<TimeRecord> {
     const [r] = await db.insert(timeRecords).values(record).returning();
     return r;
   }
