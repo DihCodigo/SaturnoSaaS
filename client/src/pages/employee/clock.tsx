@@ -12,6 +12,44 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
 import { Clock, Sun, Moon, LogOut, MapPin, Timer, History, FileText, Loader2, PlayCircle, StopCircle, AlertTriangle } from "lucide-react";
+import { OnboardingGuide } from "@/components/onboarding-guide";
+
+const employeeOnboardingSteps = [
+  {
+    title: "Bem-vindo ao Saturno!",
+    description: "Este e o seu painel de ponto eletronico. Aqui voce registra sua entrada e saida do trabalho de forma simples e rapida.",
+    position: "center" as const,
+  },
+  {
+    title: "Relogio e Data",
+    description: "O relogio mostra a hora atual em tempo real. Confira a hora antes de registrar seu ponto.",
+    targetSelector: "[data-testid='text-live-clock']",
+    position: "bottom" as const,
+  },
+  {
+    title: "Registrar Ponto",
+    description: "Clique neste botao para registrar sua entrada ou saida. O sistema detecta automaticamente se e entrada ou saida com base nos registros do dia.",
+    targetSelector: "[data-testid='button-punch']",
+    position: "bottom" as const,
+  },
+  {
+    title: "Acompanhe sua Jornada",
+    description: "Veja quanto tempo ja trabalhou, quanto falta, horario previsto de saida e horas extras. Tudo atualizado em tempo real!",
+    targetSelector: "[data-testid='text-worked-time']",
+    position: "bottom" as const,
+  },
+  {
+    title: "Navegacao",
+    description: "Use o menu inferior para acessar: Ponto (tela atual), Historico (seus registros anteriores) e Ajustes (solicitar correcoes de ponto).",
+    targetSelector: "[data-testid='nav-historico']",
+    position: "top" as const,
+  },
+  {
+    title: "Tudo Pronto!",
+    description: "Se o admin solicitar ajuste de ponto, voce vera uma notificacao na aba Ajustes. Preencha os horarios corretos e envie para aprovacao. Bom trabalho!",
+    position: "center" as const,
+  },
+];
 
 function formatMinutes(minutes: number): string {
   const h = Math.floor(Math.abs(minutes) / 60);
@@ -413,6 +451,7 @@ export default function EmployeeClockPage() {
           })}
         </div>
       </nav>
+      <OnboardingGuide storageKey="saturno_onboarding_employee" steps={employeeOnboardingSteps} />
     </div>
   );
 }

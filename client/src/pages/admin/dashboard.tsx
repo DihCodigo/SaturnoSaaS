@@ -7,6 +7,43 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle, XCircle, Wifi, WifiOff, FileWarning } from "lucide-react";
 import { Link } from "wouter";
+import { OnboardingGuide } from "@/components/onboarding-guide";
+
+const adminOnboardingSteps = [
+  {
+    title: "Bem-vindo ao Saturno!",
+    description: "Este e o seu painel de controle. Aqui voce acompanha tudo sobre a jornada de trabalho dos seus funcionarios em tempo real.",
+    position: "center" as const,
+  },
+  {
+    title: "Resumo do Dia",
+    description: "Estes cards mostram o total de funcionarios, quantos estao trabalhando agora, ausentes e horas extras do mes.",
+    targetSelector: "[data-testid='stats-grid']",
+    position: "bottom" as const,
+  },
+  {
+    title: "Alertas e Irregularidades",
+    description: "Aqui aparecem alertas automaticos: irregularidades de ponto, ajustes pendentes e jornadas estendidas. Clique para ver detalhes.",
+    targetSelector: "[data-testid='alerts-section']",
+    position: "top" as const,
+  },
+  {
+    title: "Menu de Navegacao",
+    description: "Use o menu lateral para acessar: Funcionarios (cadastrar/gerenciar), Ajustes de Ponto, Feriados, Relatorios e Configuracoes da empresa.",
+    targetSelector: "[data-testid='nav-sidebar']",
+    position: "right" as const,
+  },
+  {
+    title: "Gerenciando Funcionarios",
+    description: "Em 'Funcionarios' voce cadastra novos colaboradores. Eles recebem usuario e senha para bater ponto pelo celular ou computador.",
+    position: "center" as const,
+  },
+  {
+    title: "Tudo Pronto!",
+    description: "O sistema detecta irregularidades automaticamente e voce pode enviar solicitacoes de ajuste para os funcionarios corrigirem. Bom trabalho!",
+    position: "center" as const,
+  },
+];
 
 export default function AdminDashboard() {
   const { token } = useAuth();
@@ -52,7 +89,7 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground mt-1">Visao geral da empresa</p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="stats-grid">
           {statCards.map((stat) => (
             <Card key={stat.label} className="overflow-hidden">
               <CardContent className="p-5">
@@ -164,7 +201,7 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="alerts-section">
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-muted-foreground" />
@@ -224,6 +261,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
       </div>
+      <OnboardingGuide storageKey="saturno_onboarding_admin" steps={adminOnboardingSteps} />
     </AppLayout>
   );
 }

@@ -25,7 +25,8 @@ export default function EmployeeAdjustmentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ date: "", requestedTime: "", type: "entry", reason: "" });
   const [respondDialog, setRespondDialog] = useState<any>(null);
-  const [respondData, setRespondData] = useState({ requestedTime: "", reason: "" });
+  const [respondTimes, setRespondTimes] = useState<Record<number, string>>({});
+  const [respondReason, setRespondReason] = useState("");
 
   const { data: adjustments, isLoading } = useQuery({
     queryKey: ["/api/employee/adjustments"],
@@ -71,7 +72,8 @@ export default function EmployeeAdjustmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/employee/adjustments"] });
       toast({ title: "Sucesso", description: "Resposta enviada para aprovacao!" });
       setRespondDialog(null);
-      setRespondData({ requestedTime: "", reason: "" });
+      setRespondTimes({});
+      setRespondReason("");
     },
     onError: () => {
       toast({ title: "Erro", description: "Falha ao enviar resposta", variant: "destructive" });
@@ -225,7 +227,8 @@ export default function EmployeeAdjustmentsPage() {
                         className="gap-1.5 shrink-0"
                         onClick={() => {
                           setRespondDialog(adj);
-                          setRespondData({ requestedTime: "", reason: "" });
+                          setRespondTimes({});
+                          setRespondReason("");
                         }}
                         data-testid={`button-respond-${adj.id}`}
                       >
@@ -314,102 +317,137 @@ export default function EmployeeAdjustmentsPage() {
       </main>
 
       <Dialog open={!!respondDialog} onOpenChange={(open) => { if (!open) setRespondDialog(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Responder Solicitacao de Ajuste</DialogTitle>
           </DialogHeader>
-          {respondDialog && (
-            <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium">{respondDialog.dateFormatted || respondDialog.date}</span>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {irregularityTypeLabels[respondDialog.irregularityType || respondDialog.type]}
-                </Badge>
-                {respondDialog.adminNote && (
-                  <div className="text-xs bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-800 mt-1">
-                    <span className="font-medium text-amber-700 dark:text-amber-400">Admin: </span>
-                    <span className="text-amber-800 dark:text-amber-300">{respondDialog.adminNote}</span>
+          {respondDialog && (() => {
+            const missingSteps = respondDialog.timeline?.filter((s: any) => s.missing) || [];
+            const hasMissing = missingSteps.length > 0;
+            return (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">{respondDialog.dateFormatted || respondDialog.date}</span>
                   </div>
-                )}
-              </div>
-
-              {respondDialog.timeline && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Seus registros neste dia</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {respondDialog.timeline.map((step: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium ${
-                          step.missing
-                            ? "bg-red-50 dark:bg-red-950/20 border border-dashed border-red-300 dark:border-red-800 text-red-700 dark:text-red-400"
-                            : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400"
-                        }`}
-                      >
-                        {step.missing ? (
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                        ) : (
-                          <Clock className="w-3.5 h-3.5 shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <span className="block text-[10px] opacity-70">{step.label}</span>
-                          <span className="font-bold text-sm">{step.missing ? "Faltando" : step.time}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {respondDialog.punchCount === 0 && (
-                    <p className="text-xs text-red-600 dark:text-red-400 font-medium">Nenhum registro encontrado neste dia.</p>
+                  <Badge variant="outline" className="text-xs">
+                    {irregularityTypeLabels[respondDialog.irregularityType || respondDialog.type]}
+                  </Badge>
+                  {respondDialog.adminNote && (
+                    <div className="text-xs bg-amber-50 dark:bg-amber-950/20 p-2 rounded border border-amber-200 dark:border-amber-800 mt-1">
+                      <span className="font-medium text-amber-700 dark:text-amber-400">Admin: </span>
+                      <span className="text-amber-800 dark:text-amber-300">{respondDialog.adminNote}</span>
+                    </div>
                   )}
                 </div>
-              )}
 
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Informe o horario correto</Label>
-                <Input
-                  type="time"
-                  value={respondData.requestedTime}
-                  onChange={(e) => setRespondData({ ...respondData, requestedTime: e.target.value })}
-                  data-testid="input-respond-time"
-                  className="text-lg h-12"
-                  required
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Informe o horario que deveria ter sido registrado
-                </p>
+                {respondDialog.timeline && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Preencha os horarios faltantes
+                    </p>
+                    <div className="space-y-2">
+                      {respondDialog.timeline.map((step: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-lg text-xs font-medium ${
+                            step.missing
+                              ? "bg-red-50 dark:bg-red-950/20 border border-dashed border-red-300 dark:border-red-800"
+                              : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800"
+                          }`}
+                        >
+                          {step.missing ? (
+                            <AlertTriangle className="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" />
+                          ) : (
+                            <Clock className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <span className="block text-[10px] opacity-70">{step.label}</span>
+                            {step.missing ? (
+                              <Input
+                                type="time"
+                                value={respondTimes[idx] || ""}
+                                onChange={(e) => setRespondTimes(prev => ({ ...prev, [idx]: e.target.value }))}
+                                data-testid={`input-respond-time-${idx}`}
+                                className="h-10 text-base font-bold mt-1 border-red-300 dark:border-red-700 bg-white dark:bg-background"
+                                placeholder="--:--"
+                              />
+                            ) : (
+                              <span className="font-bold text-sm text-emerald-700 dark:text-emerald-400">{step.time}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {respondDialog.punchCount === 0 && (
+                      <p className="text-xs text-red-600 dark:text-red-400 font-medium">Nenhum registro encontrado neste dia. Preencha todos os horarios.</p>
+                    )}
+                  </div>
+                )}
+
+                {!hasMissing && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Informe o horario correto</Label>
+                    <Input
+                      type="time"
+                      value={respondTimes[0] || ""}
+                      onChange={(e) => setRespondTimes({ 0: e.target.value })}
+                      data-testid="input-respond-time"
+                      className="text-lg h-12"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Motivo / Justificativa</Label>
+                  <Textarea
+                    value={respondReason}
+                    onChange={(e) => setRespondReason(e.target.value)}
+                    placeholder="Ex: Esqueci de registrar a saida. Sai do trabalho as 18:00."
+                    data-testid="input-respond-reason"
+                    required
+                  />
+                </div>
+
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const filledTimes = hasMissing
+                      ? respondDialog.timeline
+                          .map((step: any, idx: number) => step.missing ? respondTimes[idx] : null)
+                          .filter(Boolean)
+                      : [respondTimes[0]].filter(Boolean);
+
+                    if (filledTimes.length === 0) {
+                      toast({ title: "Erro", description: "Preencha pelo menos um horario", variant: "destructive" });
+                      return;
+                    }
+                    if (hasMissing) {
+                      const missingCount = respondDialog.timeline.filter((s: any) => s.missing).length;
+                      if (filledTimes.length < missingCount) {
+                        toast({ title: "Atencao", description: "Preencha todos os horarios faltantes", variant: "destructive" });
+                        return;
+                      }
+                    }
+                    if (!respondReason) {
+                      toast({ title: "Erro", description: "Preencha o motivo", variant: "destructive" });
+                      return;
+                    }
+                    respondMutation.mutate({
+                      id: respondDialog.id,
+                      data: { requestedTimes: filledTimes, reason: respondReason },
+                    });
+                  }}
+                  disabled={respondMutation.isPending}
+                  data-testid="button-confirm-respond"
+                >
+                  {respondMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Enviar para Aprovacao
+                </Button>
               </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Motivo / Justificativa</Label>
-                <Textarea
-                  value={respondData.reason}
-                  onChange={(e) => setRespondData({ ...respondData, reason: e.target.value })}
-                  placeholder="Ex: Esqueci de registrar a saida. Sai do trabalho as 18:00."
-                  data-testid="input-respond-reason"
-                  required
-                />
-              </div>
-
-              <Button
-                className="w-full gap-2"
-                onClick={() => {
-                  if (!respondData.requestedTime || !respondData.reason) {
-                    toast({ title: "Erro", description: "Preencha todos os campos", variant: "destructive" });
-                    return;
-                  }
-                  respondMutation.mutate({ id: respondDialog.id, data: respondData });
-                }}
-                disabled={respondMutation.isPending}
-                data-testid="button-confirm-respond"
-              >
-                {respondMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Enviar para Aprovacao
-              </Button>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

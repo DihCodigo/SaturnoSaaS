@@ -23,13 +23,16 @@ Built with React + Express + PostgreSQL.
 - Bank hours calculation
 - Employee management (CRUD)
 - **Automatic irregularity detection** (missing exits, missing lunch records)
-- **Adjustment workflow**: Admin detects irregularity → sends request → Employee responds with time + reason → Admin approves
+- **Adjustment workflow**: Admin detects irregularity → sends request → Employee responds with ALL missing times + reason → Admin approves
 - Adjustment requests (employee-initiated also supported)
-- Holiday management
+- **Multi-time adjustment response**: Employee can fill in all missing punches at once (stored comma-separated, creates multiple records on approval)
+- Holiday management (with auto-seed Brazilian national holidays)
 - Company settings (work hours, geo radius, tolerance)
 - Professional reports with CSV export
 - Dark/light theme
 - Mobile-first employee interface
+- **Onboarding guide**: First-time tooltip tour for admin and employee (stored in localStorage)
+- **Timezone**: Server configured for America/Sao_Paulo (BRT) - both Node.js TZ and PostgreSQL session timezone
 
 ## Irregularity Detection System
 - **Automatic detection**: Scans last 30 days for incomplete punch records
@@ -69,12 +72,13 @@ client/src/
       dashboard.tsx    - Master admin overview
   components/
     app-layout.tsx     - Admin layout with nav
+    onboarding-guide.tsx - First-time tooltip tour
   lib/
     auth.tsx           - Auth context provider
     theme.tsx          - Theme provider
 server/
   auth.ts             - JWT middleware
-  db.ts               - Database connection
+  db.ts               - Database connection (with BRT timezone)
   routes.ts           - All API routes
   seed.ts             - Database seeding
   storage.ts          - Data access layer

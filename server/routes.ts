@@ -650,25 +650,40 @@ export async function registerRoutes(
       });
 
       if (status === "approved" && updated && updated.requestedTime) {
-        const [hours, minutes] = updated.requestedTime.split(":").map(Number);
+        const times = updated.requestedTime.split(",").map((t: string) => t.trim()).filter(Boolean);
         const dateStr = updated.date;
-        const punchTime = new Date(dateStr + "T00:00:00");
-        punchTime.setHours(hours, minutes, 0, 0);
 
-        let punchType = updated.type;
-        if (punchType === "missing_exit") punchType = "exit";
-        else if (punchType === "missing_lunch") punchType = "exit";
-
-        await storage.createTimeRecordWithTimestamp({
-          userId: updated.userId,
-          companyId: updated.companyId,
-          type: punchType,
-          timestamp: punchTime,
-          latitude: null,
-          longitude: null,
-          address: "Ajuste aprovado",
-          ip: "adjustment",
+        const allRecords = await storage.getTimeRecordsByUser(updated.userId);
+        const dayRecords = allRecords.filter(r => {
+          const d = new Date(r.timestamp);
+          const y = d.getFullYear();
+          const mo = String(d.getMonth() + 1).padStart(2, "0");
+          const da = String(d.getDate()).padStart(2, "0");
+          return `${y}-${mo}-${da}` === dateStr;
         });
+        const existingCount = dayRecords.length;
+
+        for (let i = 0; i < times.length; i++) {
+          const timeParts = times[i].split(":").map(Number);
+          if (timeParts.length < 2) continue;
+          const [hours, minutes] = timeParts;
+          const punchTime = new Date(dateStr + "T00:00:00");
+          punchTime.setHours(hours, minutes, 0, 0);
+
+          const totalIndex = existingCount + i;
+          const punchType = totalIndex % 2 === 0 ? "entry" : "exit";
+
+          await storage.createTimeRecordWithTimestamp({
+            userId: updated.userId,
+            companyId: updated.companyId,
+            type: punchType,
+            timestamp: punchTime,
+            latitude: null,
+            longitude: null,
+            address: "Ajuste aprovado",
+            ip: "adjustment",
+          });
+        }
       }
 
       res.json(updated);
@@ -1102,9 +1117,13 @@ export async function registerRoutes(
 
   app.patch("/api/employee/adjustments/:id/respond", authMiddleware(["employee"]), async (req: AuthRequest, res) => {
     try {
-      const { requestedTime, reason } = req.body;
-      if (!requestedTime || !reason) {
-        return res.status(400).json({ message: "Horario e motivo sao obrigatorios" });
+      const { requestedTime, requestedTimes, reason } = req.body;
+      const timesValue = requestedTimes
+        ? (Array.isArray(requestedTimes) ? requestedTimes.filter((t: string) => t).join(",") : requestedTimes)
+        : requestedTime;
+
+      if (!timesValue || !reason) {
+        return res.status(400).json({ message: "Horario(s) e motivo sao obrigatorios" });
       }
 
       const adjustments = await storage.getAdjustmentsByUser(req.user!.id);
@@ -1115,7 +1134,7 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateAdjustment(req.params.id, {
-        requestedTime,
+        requestedTime: timesValue,
         reason,
         status: "pending",
       });

@@ -55,7 +55,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Link>
           </div>
 
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-1" data-testid="nav-sidebar">
             {navItems.map((item) => {
               const isActive = location === item.path;
               return (
