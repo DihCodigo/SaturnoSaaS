@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Building2, User, Shield, Loader2 } from "lucide-react";
 
+import logo from "@/assets/img/logoSaturnoTransp.png";
+
 const loginFormSchema = z.object({
   username: z.string().min(1, "Usuario obrigatorio"),
   password: z.string().min(1, "Senha obrigatoria"),
@@ -65,8 +67,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg mb-4">
-            <Clock className="w-8 h-8 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center w-48 h-48 rounded-2xl mb-4">
+            <img
+              src={logo}
+              alt="Logo Saturno"
+              className="w-48 h-48 object-contain"
+            />
           </div>
           <h1 className="text-3xl font-bold tracking-tight" data-testid="text-app-title">Saturno</h1>
           <p className="text-muted-foreground mt-1">Sistema de Controle de Ponto Eletronico</p>
